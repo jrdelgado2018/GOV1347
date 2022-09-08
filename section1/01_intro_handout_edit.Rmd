@@ -12,108 +12,9 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 knitr::opts_chunk$set(echo = TRUE, fig.align="center")
 #options(repos = list(CRAN="http://cran.rstudio.com/"))
+# set working directory first always
+setwd("~/Desktop/GOV1347/section1")
 ```
-
-# (Re-)Introductions!
-
-## * Icebreaker: name, hometown, favorite piece of media consumed this summer and why
-
-# Today's agenda
-
-![](imgs copy/the_numbers.jpg){width=750px, height=550px}
-
-1.  **Set-up:** Kick off your career as a *professional*
-    election analyst: 
-
-    -   Set up your own blog on GitHub
-    -   Review some key data analysis tools 
-    -   Review what makes a good data visualization
-
-2.  **Describing trends in the popular vote:** Build your
-    *first visualizations* to answer two foundational
-    questions:
-
-    -   How competitive are midterm elections in the United States?
-    -   Which states and districts vote blue/red and how consistently?
-\newpage    
-
-# 1. Set-Up
-
-## Setting up your election analysis blog
-
-1.  Make a *GitHub* account (if you don't have one) 
-
-2.  Go to https://pages.github.com
-
-3.  Select the options below and follow the instructions:
-
-![](imgs copy/Github1.png)
-\newpage 
-
-# Our (actual) workflow for this class
-
-1. Set your working directory in R to your Github repository for this class.
-
-2. Download the weekly section data from the Google drive (~/Lab sessions/01-Intro (9/8)/Section data
-https://drive.google.com/drive/folders/1fOPjqzf6d4rVjewC0qP6HTgZKoQEsV47) to your Gov 1347 Github repository.
-
-3. Describe, visualize, and otherwise work with the section data in Rmarkdown. 
-
-# Our workflow for today
-
-1. Create folder in your file management system for this class and set this as your working directory.
-
-2. Download the weekly section data from the Google drive (~/Lab sessions/01-Intro (9/8)/Section data
-https://drive.google.com/drive/folders/1fOPjqzf6d4rVjewC0qP6HTgZKoQEsV47) to your Gov 1347 folder.
-
-3. Describe, visualize, and otherwise work with the section data in Rmarkdown. 
-
-
-# The `R` analyst's workflow
-
-![](imgs copy/data_science_1.png){width=500px}
-
--   Descriptive inference (vs) Causal inference (vs) Predictive
-    inference
-
-# The `R` election analyst's workflow
-
-![](imgs copy/data_science_2.png){width=500px}
-
-Caveat: **descriptive** models aren't always useful for
-**predictive** inference and vice versa. We will try to be
-*principled* in how we approach both tasks ... and be
-careful not to automatically conflate either with **causal**
-inference.
-
-# Fundamentals of analyzing and visualizing election data
-
-```{=tex}
-\begin{center}
-\begin{tabular}{ l || c | l }
-  \textbf{What you want to do} & R packages & Example functions \\ 
-  \hline
-  \hline
-  {Load data} & \texttt{tidyverse} & \texttt{read\_csv} \\  
-  {Subset rows or columns} & \texttt{tidyverse} & \texttt{filter}, \texttt{select} \\
-  {Format data (wide or long)} & \texttt{tidyverse} & \texttt{spread}, \texttt{gather} \\
-  {Create new columns} & \texttt{tidyverse} & \texttt{mutate} \\
-  {Summarise data} & \texttt{tidyverse} & \texttt{group\_by}, \texttt{summarise} \\
-  {Merge datasets} & \texttt{tidyverse} & \texttt{join} \\
-  {Visualizations} & \texttt{ggplot2} & \texttt{geom\_line} \\
-  {Statistical analysis} & base R & \texttt{lm}, \texttt{glm} \\
-\end{tabular}
-\end{center}
-```
-
-```{=tex}
-{
-We're assuming you have some familiarity with this workflow using \texttt{R Studio} from Gov 50 or elsewhere.}
-{ In this section's analysis, we will review these tools and establish some good practices.
-}
-```
-
-\newpage
 
 ## 2. Describing Trends in the Popular Vote
 
@@ -125,15 +26,9 @@ from 1948-2020:
 First, download the data from the section folder and move it your folder for this class.
 
 ```{r, include=TRUE, echo=TRUE, eval=FALSE, message=FALSE, warning=FALSE}
-# set working directory first always
-setwd("~/Dropbox/ElectionAnalytics_Midterms/Lab sessions/Intro")
-library(tidyverse)
-popvote_df <- read_csv("house nationwide vote and seat share by party 1948-2020.csv")
-```
 
-```{r, include=TRUE, echo=FALSE, eval=TRUE, message=FALSE, warning=FALSE}
 library(tidyverse)
-popvote_df <- read_csv("~/Dropbox/ElectionAnalytics_Midterms/Lab sessions/Intro/Section data/house nationwide vote and seat share by party 1948-2020.csv")
+popvote_df = read_csv("data/house nationwide vote and seat share by party 1948-2020.csv")
 ```
 
 ```{r, include=TRUE, echo=TRUE, message=FALSE, warning=FALSE}
@@ -208,7 +103,7 @@ With our wide race-level dataframe, we can code who wins each race:
 
 ```{r, include=TRUE, echo=TRUE}
 
-popvote_wide_df$winner <- ifelse(
+popvote_wide_df$winner = ifelse(
   is.na(popvote_wide_df$D == TRUE), 
   "Republican", "Democrat")
 
@@ -238,7 +133,7 @@ Most interesting datasets are actually merges of individual datasets. A
 hypothetical example is merging in yearly GDP with our race-level data:
 
 ```{r, eval=FALSE, echo=TRUE}
-popvote_and_economy_df <- popvote_wide_df %>%
+popvote_and_economy_df = popvote_wide_df %>%
   left_join(economy_df, by = "year")
 ```
 
@@ -290,7 +185,7 @@ ggplot(data = df, mapping = aes(x = x_col, y = y_col)) +
 ```{r, include=TRUE, message=FALSE, warning=FALSE, echo=FALSE, eval=TRUE, fig.align="center"}
 #### want a state-level analysis
 library(readr)
-house_party_vote_share_by_district_1948_2020 <- read_csv("house party vote share by district 1948-2020.csv")
+house_party_vote_share_by_district_1948_2020 <- read_csv("data/house party vote share by district 1948-2020.csv")
 h <- house_party_vote_share_by_district_1948_2020
 
 # ready to replicate facet plot
