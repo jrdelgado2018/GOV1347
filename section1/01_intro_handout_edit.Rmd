@@ -1,0 +1,502 @@
+---
+title: Section 01 Introduction
+subtitle: "Gov 1347: Election Analytics"
+author: Kiara Hernandez
+date: \today
+institute: Harvard University
+fontsize: 20pt
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, fig.align="center")
+#options(repos = list(CRAN="http://cran.rstudio.com/"))
+```
+
+# (Re-)Introductions!
+
+## * Icebreaker: name, hometown, favorite piece of media consumed this summer and why
+
+# Today's agenda
+
+![](imgs copy/the_numbers.jpg){width=750px, height=550px}
+
+1.  **Set-up:** Kick off your career as a *professional*
+    election analyst: 
+
+    -   Set up your own blog on GitHub
+    -   Review some key data analysis tools 
+    -   Review what makes a good data visualization
+
+2.  **Describing trends in the popular vote:** Build your
+    *first visualizations* to answer two foundational
+    questions:
+
+    -   How competitive are midterm elections in the United States?
+    -   Which states and districts vote blue/red and how consistently?
+\newpage    
+
+# 1. Set-Up
+
+## Setting up your election analysis blog
+
+1.  Make a *GitHub* account (if you don't have one) 
+
+2.  Go to https://pages.github.com
+
+3.  Select the options below and follow the instructions:
+
+![](imgs copy/Github1.png)
+\newpage 
+
+# Our (actual) workflow for this class
+
+1. Set your working directory in R to your Github repository for this class.
+
+2. Download the weekly section data from the Google drive (~/Lab sessions/01-Intro (9/8)/Section data
+https://drive.google.com/drive/folders/1fOPjqzf6d4rVjewC0qP6HTgZKoQEsV47) to your Gov 1347 Github repository.
+
+3. Describe, visualize, and otherwise work with the section data in Rmarkdown. 
+
+# Our workflow for today
+
+1. Create folder in your file management system for this class and set this as your working directory.
+
+2. Download the weekly section data from the Google drive (~/Lab sessions/01-Intro (9/8)/Section data
+https://drive.google.com/drive/folders/1fOPjqzf6d4rVjewC0qP6HTgZKoQEsV47) to your Gov 1347 folder.
+
+3. Describe, visualize, and otherwise work with the section data in Rmarkdown. 
+
+
+# The `R` analyst's workflow
+
+![](imgs copy/data_science_1.png){width=500px}
+
+-   Descriptive inference (vs) Causal inference (vs) Predictive
+    inference
+
+# The `R` election analyst's workflow
+
+![](imgs copy/data_science_2.png){width=500px}
+
+Caveat: **descriptive** models aren't always useful for
+**predictive** inference and vice versa. We will try to be
+*principled* in how we approach both tasks ... and be
+careful not to automatically conflate either with **causal**
+inference.
+
+# Fundamentals of analyzing and visualizing election data
+
+```{=tex}
+\begin{center}
+\begin{tabular}{ l || c | l }
+  \textbf{What you want to do} & R packages & Example functions \\ 
+  \hline
+  \hline
+  {Load data} & \texttt{tidyverse} & \texttt{read\_csv} \\  
+  {Subset rows or columns} & \texttt{tidyverse} & \texttt{filter}, \texttt{select} \\
+  {Format data (wide or long)} & \texttt{tidyverse} & \texttt{spread}, \texttt{gather} \\
+  {Create new columns} & \texttt{tidyverse} & \texttt{mutate} \\
+  {Summarise data} & \texttt{tidyverse} & \texttt{group\_by}, \texttt{summarise} \\
+  {Merge datasets} & \texttt{tidyverse} & \texttt{join} \\
+  {Visualizations} & \texttt{ggplot2} & \texttt{geom\_line} \\
+  {Statistical analysis} & base R & \texttt{lm}, \texttt{glm} \\
+\end{tabular}
+\end{center}
+```
+
+```{=tex}
+{
+We're assuming you have some familiarity with this workflow using \texttt{R Studio} from Gov 50 or elsewhere.}
+{ In this section's analysis, we will review these tools and establish some good practices.
+}
+```
+
+\newpage
+
+## 2. Describing Trends in the Popular Vote
+
+## Load data (\texttt{read\_csv})
+
+We're going to analyze major-party midterm candidates' popular votes
+from 1948-2020:
+
+First, download the data from the section folder and move it your folder for this class.
+
+```{r, include=TRUE, echo=TRUE, eval=FALSE, message=FALSE, warning=FALSE}
+# set working directory first always
+setwd("~/Dropbox/ElectionAnalytics_Midterms/Lab sessions/Intro")
+library(tidyverse)
+popvote_df <- read_csv("house nationwide vote and seat share by party 1948-2020.csv")
+```
+
+```{r, include=TRUE, echo=FALSE, eval=TRUE, message=FALSE, warning=FALSE}
+library(tidyverse)
+popvote_df <- read_csv("~/Dropbox/ElectionAnalytics_Midterms/Lab sessions/Intro/Section data/house nationwide vote and seat share by party 1948-2020.csv")
+```
+
+```{r, include=TRUE, echo=TRUE, message=FALSE, warning=FALSE}
+
+colnames(popvote_df)
+
+```
+
+
+```{r, eval=TRUE, include=TRUE, echo=TRUE, message=FALSE, warning=FALSE}
+
+head(popvote_df[c("year", "winner_party", "winning_vote_margin")])
+
+```
+
+## Subsetting data (\texttt{filter}, \texttt{select})
+
+It's always a good idea to spot-check your dataset: \texttt{filter} on
+specific rows and \texttt{select} specific columns.
+
+```{r, include=TRUE, echo=TRUE, message=FALSE, warning=FALSE}
+popvote_df %>% 
+  filter(year == 2018) %>% 
+  select(D_seats, D_majorvote_pct, winner_party)
+
+
+```
+
+## Formatting data to wide or long (\texttt{spread}, \texttt{gather}) 
+
+Depending on what you want the unit of analysis to be, you might want to
+change how the data look. 
+
+Currently, long format (the unit of analysis: party-race)
+
+```{r, include=TRUE, echo=TRUE}
+popvote_df %>%
+    select(year, winner_party, winning_vote_margin) %>%
+    filter(year %in% c(1948, 1952, 1956))
+
+```
+
+## Formatting data to wide or long (\texttt{spread}, \texttt{gather}) 
+
+Long to wide format (unit of analysis: race) 
+
+```{r, include=TRUE, echo=TRUE}
+popvote_wide_df <- popvote_df %>%
+  select(year, winner_party, winning_vote_margin) %>%
+  spread(key = winner_party, value = winning_vote_margin)
+
+head(popvote_wide_df, 3)
+
+```
+
+## Formatting data to wide or long (\texttt{spread}, \texttt{gather}) 
+
+Wide to long format (unit of analysis: candidate-race)
+
+```{r, include=TRUE, echo=TRUE}
+popvote_wide_df %>%
+  gather(key = "winner_party", value = "winning_vote_margin",
+         D, R) %>% 
+  filter(year %in% c(1948, 1952, 1956))
+```
+
+## Modifying our data (many options)
+
+With our wide race-level dataframe, we can code who wins each race:
+
+-   With base \texttt{R}:
+
+```{r, include=TRUE, echo=TRUE}
+
+popvote_wide_df$winner <- ifelse(
+  is.na(popvote_wide_df$D == TRUE), 
+  "Republican", "Democrat")
+
+```
+
+-   With \texttt{tidyverse}:
+
+```{r, include=TRUE, echo=TRUE}
+popvote_wide_df <- popvote_wide_df %>%
+  mutate(winner = case_when(D != "NA" ~ "Democrat",
+                            TRUE ~ "Republican"))
+```
+
+## Summaries of our data (\texttt{summarise})
+
+Now we can ask: from 1948 - 2016, how many races were won by Democrats?
+
+```{r, eval=TRUE, include=TRUE, echo=TRUE, message=FALSE, warning=FALSE}
+popvote_wide_df %>% 
+  group_by(winner) %>%
+  summarise(races = n())
+```
+
+## Merging datasets together (\texttt{*\_join}) 
+
+Most interesting datasets are actually merges of individual datasets. A
+hypothetical example is merging in yearly GDP with our race-level data:
+
+```{r, eval=FALSE, echo=TRUE}
+popvote_and_economy_df <- popvote_wide_df %>%
+  left_join(economy_df, by = "year")
+```
+
+
+There are different types of joins depending on how you want to deal
+with un-merged rows. Ex: 
+
+-   \texttt{left\_join} discards un-merged rows originally in
+    \texttt{economy\_df} 
+-   \texttt{inner\_join} discards un-merged rows in both dataframes
+ 
+-   \texttt{full\_join} keeps all the rows in both dataframes 
+
+\newpage
+## Visualising our data in \texttt{ggplot2} 
+
+**Review**: After passing data into \texttt{ggplot} command and selecting
+the type of \texttt{geom\_}\* plot, you must gradually \`\`layer'' on
+the plot attributes:
+
+```{r, include=TRUE, echo=TRUE, eval=FALSE}
+library(ggplot2)
+ggplot(data = df, mapping = aes(x = x_col, y = y_col)) +
+  geom_bar()
+```
+
+```{r, include=TRUE, echo=TRUE, eval=FALSE}
+library(ggplot2)
+ggplot(data = df, mapping = aes(x = x_col, y = y_col)) +
+  geom_bar() +
+  xlab("x axis label") + 
+  ylab("y axis label") + 
+  ggtitle("my plot")
+```
+
+```{r, include=TRUE, echo=TRUE, eval=FALSE}
+library(ggplot2)
+ggplot(data = df, mapping = aes(x = x_col, y = y_col)) +
+  geom_bar() +
+  xlab("x axis label") + 
+  ylab("y axis label") + 
+  ggtitle("my plot") +
+  theme_classic() + 
+  theme(axis.text = element_text(size = 10))
+```
+
+## Example: [FiveThirtyEight-esque](https://projects.fivethirtyeight.com/swing-states-2020-election/) replication in `ggplot2`
+
+```{r, include=TRUE, message=FALSE, warning=FALSE, echo=FALSE, eval=TRUE, fig.align="center"}
+#### want a state-level analysis
+library(readr)
+house_party_vote_share_by_district_1948_2020 <- read_csv("house party vote share by district 1948-2020.csv")
+h <- house_party_vote_share_by_district_1948_2020
+
+# ready to replicate facet plot
+h %>% 
+  filter(State %in% c("Arizona")) %>%
+  filter(raceYear >= 2000) %>%
+  group_by(district_id) %>%
+  ggplot(aes(x=raceYear, y=R_vote_margin*100, color=R_vote_margin)) + # *100
+  geom_hline(yintercept=0,color="gray") +
+  scale_x_reverse(breaks=unique(h$raceYear)) + 
+  #coord_flip() +
+  geom_line(size=1) + geom_point(size=3) +
+  scale_colour_gradient(low = "blue", high = "red") +
+  scale_fill_gradient(low = "blue", high = "red") +
+  facet_wrap(. ~ district_id) + 
+  xlab("") +
+  ggtitle("Arizona vote swing, 2000-2020") + # edit title
+  ylab("Republican vote-share margin") + 
+  theme_minimal() + 
+    theme(
+        panel.border = element_blank(),
+        plot.title = element_text(size = 10, hjust = 0.5, face="bold"), 
+        legend.position = "none",
+        axis.title = element_text(size=10),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.text = element_text(size = 10),
+        strip.text = element_text(size = 10, face = "bold"))
+```
+
+# Interactive Session in \texttt{R Studio}
+
+## Geographic and temporal trends in midterm elections?
+
+```{r, include=TRUE, message=FALSE, warning=FALSE, echo=TRUE, eval=TRUE, fig.align="center"}
+## make map of vote share by state and CD
+
+# start with 114th congress - 2014 election
+# required packages 
+require(tidyverse)
+require(ggplot2)
+require(sf)
+
+# load geographic data
+get_congress_map <- function(cong=114) {
+  tmp_file <- tempfile()
+  tmp_dir  <- tempdir()
+  zp <- sprintf("https://cdmaps.polisci.ucla.edu/shp/districts114.zip",cong)
+  download.file(zp, tmp_file)
+  unzip(zipfile = tmp_file, exdir = tmp_dir)
+  fpath <- paste(tmp_dir, sprintf("districtShapes/districts114.shp",cong), sep = "/")
+  st_read(fpath)
+}
+
+# load 114th congress
+cd114 <- get_congress_map(114)
+
+# select specific state 
+cd114_nj <- cd114 %>% 
+            filter(STATENAME=="New Jersey") %>%
+            mutate(DISTRICT = as.character(DISTRICT))%>%
+            select(DISTRICT)
+
+# add data to plot - 2014 GOP party seat share
+# reload election data - h from previous exercise
+h <- house_party_vote_share_by_district_1948_2020
+
+# filter for 2014 election and state
+R_nj_2014 <- h %>%
+    filter(raceYear == 2014, State == "New Jersey") %>%
+    select(raceYear, State, district_num, RepVotesMajorPercent, DemVotesMajorPercent) %>%
+  # summarize party vote share by district
+    group_by(district_num) %>%
+    summarise(Rep_votes_pct = RepVotesMajorPercent) %>%
+  # rename district variable name to match shapefile
+    rename(DISTRICT = district_num)
+
+# before joining dfs, check classes of variable to be merged on
+class(R_nj_2014$DISTRICT)
+class(cd114_nj$DISTRICT)
+
+# change class
+cd114_nj$DISTRICT <- as.numeric(cd114_nj$DISTRICT)
+
+# join election returns with shapefiles
+cd114_nj <- cd114_nj %>% left_join(R_nj_2014, by="DISTRICT")
+cd114_nj
+
+# time to map!
+ggplot() + 
+  geom_sf(data=cd114_nj,aes(fill=Rep_votes_pct),
+          inherit.aes=FALSE,alpha=0.9) + 
+  scale_fill_gradient(low = "white", high = "black", limits=c(10,80)) +
+  theme_void() +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank()) 
+
+## make map of GOP vote share by state (national) - 2014
+# use h dataset from earlier
+# house_party_vote_share_by_district_1948_2020 <- 
+  # read_csv("house party vote share by district 1948-2020.csv")
+# h <- house_party_vote_share_by_district_1948_2020
+ 
+# filter for relevant variables
+R_2014 <- h %>%
+    filter(raceYear == 2014) %>%
+    select(raceYear, State, district_num, district_id, RepVotes, DemVotes) %>%
+  # summarize party vote share by state
+    group_by(State) %>%
+  # mutate Rep vote margin by state %>%
+    mutate(R_votemargin_st = (sum(RepVotes))/
+                            sum(RepVotes + DemVotes),
+           D_votemargin_st = (sum(DemVotes))/
+                            sum(RepVotes + DemVotes)) %>%
+    rename(state = State)
+
+# load usmap
+# install.packages('plot_usmap')
+library(usmap)
+
+states_map <- usmap::us_map()
+unique(states_map$abbr)
+
+# plot
+plot_usmap(data = R_2014, regions = "states", values = "R_votemargin_st") + 
+  scale_fill_gradient(low = "white", high = "red", name = "GOP two-party voteshare margin") +
+  theme_void()
+
+## map across all election years
+# filter for relevant variables
+R_all <- h %>%
+    select(raceYear, State, district_num, district_id, RepVotes, DemVotes) %>%
+  # summarize party vote share by state
+    group_by(State) %>%
+  # mutate Rep vote margin by state %>%
+    mutate(R_votemargin_st = (sum(RepVotes))/
+                            sum(RepVotes + DemVotes),
+           D_votemargin_st = (sum(DemVotes))/
+                            sum(RepVotes + DemVotes)) %>%
+    rename(state = State)
+
+# plot
+plot_usmap(data = R_all, regions = "states", values = "R_votemargin_st") + 
+  facet_wrap(facets = raceYear ~.) +
+  scale_fill_gradient(low = "white", high = "red", name = "GOP two-party voteshare margin") +
+  theme_void()
+
+```
+
+A summary of the district-level exercise (and lots of other helpful information about
+mapping congressional districts in R) can be found here:
+<https://cdmaps.polisci.ucla.edu/tut/mapping_congress_in_R.html>
+
+# Final thoughts
+
+-   Impossible to memorize every single `dplyr` and `ggplot2` command
+    you'll need. 
+-   Recommendation: create R Studio snippets for various plots we've
+    shown today (`Preferences > Code > Snippets`).
+-   Visualization is about communication, not coding ... points
+    for **clarity** and **engagement**, not technical
+    wizardry.
+-   Lots of `ggplot2` tools to creatively communicate:
+    \url{exts.ggplot2.tidyverse.org/gallery/}
+
+# Blog extensions
+
+1.  **Visualization customization.** Use the tools from this
+    section to 
+    1. create a map of Republican/Democrat voteshare margin
+    by state in a year of your choice,
+    2. create a map of Republican/Democrat voteshare margin by state
+         and congressional district in 2014,
+    3. label each state (e.g. `AZ`) in your map and
+    4. create a custom `ggplot2` theme for your blog.
+    
+2.  **Gerrymandering extension.** So far, we've been looking at the
+    voteshare margin by party. This means we have been working with the
+    popular vote as opposed to the number of seats won in the House
+    (recall our discussion from Tuesday about the inefficient geographic
+    distribution of Democrats as compared to Republicans that results
+    from gerrymandering --- the drawing of district boundaries to give
+    parties electoral advantages. Read more here:
+    \url{https://www.washingtonpost.com/news/wonk/wp/2015/03/01/this-is-the-best-explanation-of-gerrymandering-you-will-ever-see/},
+    Why Cities Lose: The Deep Roots of the Urban-Rural Political Divide.
+    Jonathan A. Rodden. Basic Books. 2019.).
+    * Create a map of seat share by party for the entire U.S. in a year of
+    your choice. 
+      + You can find and download the data at this website:
+      \url{https://guides.library.harvard.edu/hks/campaigns_elections>}. 
+      + Select "CQ Voting & Elections Collection" \> Election Results \> Office:
+      + House Elections \> Election Type: General \> Region: National \>
+      + Year: [your choice]. 
+      + Similar to the map you created of voteshare
+      margin by state, your map should contain all 50 states shaded
+      according the proportion of seats won by Republicans/Democrats. How do
+      seat share and voteshare compare?
+    
+3.  \textbf{Swing state map extension.} Instead of plotting
+    \textit{voteshare-margin} maps for each year $y$ where the color for
+    a state is colored by the quantity $\frac{R_y}{D_y+R_y}$ (or
+    $\frac{D_y}{D_y+R_y}$), plot a \textit{swing map} for each year
+    where each state is colored by the quantity
+    $\frac{R_y}{D_y+R_y} - \frac{R_{y-4}}{D_{y-4} + R_{y-4}}$. Which
+    states are/have been battleground states? Which are no longer?
+
