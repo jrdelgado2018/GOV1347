@@ -1,3 +1,6 @@
+# Theme
+theme               : cayman
+
 # Where things are
 source              : .
 destination         : ./_site
