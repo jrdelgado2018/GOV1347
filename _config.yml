@@ -1,5 +1,5 @@
 # Theme
-theme               : cayman-theme
+theme               : jekyll-theme-cayman
 
 # Where things are
 source              : .
