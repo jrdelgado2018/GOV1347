@@ -1,5 +1,5 @@
 # Theme
-theme               : cayman
+theme               : cayman-theme
 
 # Where things are
 source              : .
