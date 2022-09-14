@@ -1,0 +1,56 @@
+---
+title: "Blog One"
+author: "Jackson Delgado"
+date: '2022-09-14'
+output: md_document
+---
+
+```{r setup, include=FALSE}
+# Set R Markdown settings and load necessary packages
+knitr::opts_chunk$set(echo=FALSE, fig.align="center")
+knitr::opts_knit$set(root.dir="~/Desktop/GOV1347.nosync")
+library(tidyverse)
+library(sf)
+library(usmap)
+library(grid)
+library(gridExtra)
+```
+
+```{r data, include=FALSE}
+# Read in the data and do a few minor manipulations
+df = read_csv("data/house seat share and vote share 2000-2002.csv") %>% 
+  data.frame() %>%
+  rename(state = Area) %>%
+  mutate(RepSeatsMajorPercent = 100 * RepWinner / (RepWinner + DemWinner)) %>% # Create column for GOP seat %
+  mutate(DemSeatsMajorPercent = 100 * DemWinner / (DemWinner + RepWinner)) %>% # Same thing, for Democrats
+  mutate(RaceYear = RaceDate %/% 10000) # Extract year from YYYYMMDD integer
+election_2002 = df %>% filter(RaceYear == 2002)
+election_2000 = df %>% filter(RaceYear == 2000)
+```
+
+```{r maps, include=FALSE}
+# A function that will plot the US intensity map for a certain column (coloring states red, so assuming GOP data)
+plot_map = function(df, colname, label) {
+  states = us_map()
+  plt = plot_usmap(data=df, regions="states", values=colname) +
+    scale_fill_gradient(low="white", high="red", name=label, limits=range(0, 100)) +
+    theme_void() + 
+    theme(plot.margin=unit(c(0,0.5,0,0.5),"cm"))
+  return(plt)
+}
+
+# A function that will plot both vote % and seat % side-by-side for easy comparison
+both_maps = function(df, title) {
+  p1 = plot_map(df, "RepVotesMajorPercent", "% of Votes")
+  p2 = plot_map(df, "RepSeatsMajorPercent", "% of Seats")
+  return(grid.arrange(p1, p2, ncol=2, top=textGrob(title, vjust=5)))
+}
+```
+
+```{r 2000, fig.width=10, fig.height=4}
+both_maps(election_2000, "G.O.P. Vote and Seat Shares in the House of Representatives, 2000 Election")
+```
+
+```{r 2002, fig.width=10, fig.height=4}
+both_maps(election_2000, "G.O.P. Vote and Seat Shares in the House of Representatives, 2000 Election")
+```
