@@ -1,4 +1,4 @@
-# TEST
+# Blog Post One: Visualizing the Effects of Gerrymandering
 
 ## Introduction
 
@@ -6,18 +6,18 @@ Hello! Welcome to my first weekly blog entry. This series will present
 statistical models that describe and predict the 2022 congressional
 midterm elections. This first entry, though, will present a few
 visualizations that draw insight into the effect of gerrymandering on
-our elections.
+elections in the early 2000s.
 
 Gerrymandering – the creation of voting districts whose geographies give
-one party an electoral advantage over the other (see this explanation) –
+one party an electoral advantage over the other [see this explanation for more](https://www.washingtonpost.com/news/wonk/wp/2015/03/01/this-is-the-best-explanation-of-gerrymandering-you-will-ever-see/) –
 has been a salient topic both in the political discussion and in our
 nation’s courts. Both political parties have utilized this tactic - it
-seems that the most recent round of redistricting has benefited the
-Democrats, but in previous decades the Republicans have tended to
-benefit more (). To investigate the effects of gerrymandering, we can
+seems that the most recent round of redistricting has [benefited the
+Democrats](https://www.vox.com/22961590/redistricting-gerrymandering-house-2022-midterms), but in previous decades the [Republicans have tended to
+benefit more](https://www.nbcnews.com/news/us-news/partisan-gerrymandering-has-benefited-gop-analysis-shows-n776436). To investigate the effects of gerrymandering, we can
 compare the vote share (the percent of votes that one party receives) to
 the seat share (the percent of seats in Congress that the party ends up
-holding) in an election. If a party receives more seats than votes, it
+holding) in an election. If a party receives (proportionally) more seats than votes, it
 has benefited from gerrymandering; if it receives fewer seats than
 votes, it has suffered from gerrymandering; and if the two percentages
 are roughly equal, then the electoral districts are roughly
@@ -36,6 +36,12 @@ were redrawn following the 2000 census. So, we might ask the question:
 did Republicans have such an atypical gain in the House completely
 because of President Bush’s popularity, or did gerrymandering have
 something to do with it?
+
+To answer this question, we will use data on the votes and seats won
+in the 2002 election in each state, curated by the Harvard Kennedy School. 
+The data can be found [here.](https://guides.library.harvard.edu/hks/campaigns_elections) Slight adjustments were made to the data
+to re-code the congresspeople who are technically independents but reliably
+caucus with one of the major parties (Bernie Sanders, for example).
 
 Nationally, Republicans won 229 of the 435 seats in the House of
 Representatives, or roughly 52.6%. As the nationwide Republican vote
