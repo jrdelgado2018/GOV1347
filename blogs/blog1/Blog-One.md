@@ -9,7 +9,7 @@ visualizations that draw insight into the effect of gerrymandering on
 elections in the early 2000s.
 
 Gerrymandering – the creation of voting districts whose geographies give
-one party an electoral advantage over the other [see this explanation for more](https://www.washingtonpost.com/news/wonk/wp/2015/03/01/this-is-the-best-explanation-of-gerrymandering-you-will-ever-see/) –
+one party an electoral advantage over the other [(see this explanation for more)](https://www.washingtonpost.com/news/wonk/wp/2015/03/01/this-is-the-best-explanation-of-gerrymandering-you-will-ever-see/) –
 has been a salient topic both in the political discussion and in our
 nation’s courts. Both political parties have utilized this tactic - it
 seems that the most recent round of redistricting has [benefited the
@@ -82,7 +82,7 @@ the number of seats held). They won 222 of the 435 possible seats
 (roughly 51%) despite only taking roughly 50% of the vote. Those
 percentages are again pretty close, indicating the the election was
 fairly representative of the country’s preferences. Below is a
-comparison of difference between the seat share and the vote share in
+comparison of the difference between the seat share and the vote share in
 each election, with 2000 on the left and 2002 on the right. Both maps
 use the same color scale, where blue indicates Republicans winning far
 fewer seats than votes and red indicates Republicans winning far more
@@ -95,10 +95,12 @@ that got redder, and a few states in the northeast that got bluer, but
 overall most states remain a similar shade of purple between the two
 years. From this, we might conclude that the redrawing of congressional
 districts following the 2000 census did not disproportionately benefit
-either party, as compared to the existing maps. The implication of all
-this is that we can answer the question we set out to answer:
+either party, as compared to the existing maps. 
+
+The implication of all
+this is that we can answer the question we set out to answer.
 Republicans did so well in the 2002 midterms not because they simply
 took advantage of gerrymandering to win proportionally more seats than
 votes. There is not very much evidence to support that claim. Rather, it
-appears that their atypically increased majority in the House was
-reflective of the country’s preferences.
+appears that their atypically increasing majority in the House was
+reflective of the country’s preferences at that time. 
