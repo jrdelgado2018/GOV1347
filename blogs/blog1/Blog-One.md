@@ -60,7 +60,7 @@ right) that the Republicans attained in this election. Both maps use the
 same color scale, where a “hotter” shade of red corresponds to a larger
 percent. So, if there are many states that are “hotter” on one map than
 on the other, we might conclude that gerrymandering either helped or
-hurt the Republicans (depending on which map is “hotter”).
+hurt the Republicans (depending on which map is the “hotter” one).
 
 <img src="Blog-One_files/figure-markdown_strict/2002-1.png" style="display: block; margin: auto;" />
 
@@ -68,10 +68,10 @@ There certainly appear to be more states whose G.O.P. seat shares are
 “hotter” than the corresponding G.O.P. vote shares. We see this across
 the west, midwest, and south. So, why are the nationwide seat and vote
 percentages so close? Well, there are a smaller number of states, mostly
-located in the northeast, where the Democrats won many more seats than
-votes. These states tended to be larger (for example, New York,
-Massachusetts, and Maryland), which offset the effects of Republicans
-winning many more seats than votes in more, but smaller states.
+located in the northeast, where the Democrats won proportionally more seats than
+votes. These states (for example, New York, Massachusetts, and Maryland) 
+tend to be larger than the states in which Republicans won 
+more seats than votes. In aggregate, the two effects offset each other.
 
 ## Comparing to the 2000 Election
 
@@ -82,11 +82,14 @@ states in which Democrats were favored tended to be larger. This
 resulted in an overall balance between the two parties. To see if the
 redrawn maps had much of an impact at all, we might compare the 2002
 election to the 2000 election, the last election that used the district
-maps from before the 2000 census. In this election, Republicans
-maintained control of the House (though did not significantly increase
+maps from before the 2000 census. 
+
+In this election, Republicans
+maintained control of the House (though they did not significantly increase
 the number of seats held). They won 222 of the 435 possible seats
-(roughly 51%) despite only taking roughly 50% of the vote. Those
-percentages are again pretty close, indicating the the election was
+(roughly 51%), despite only taking roughly 50% of the vote. This is a _larger_ 
+discrepancy between vote share and seat share than we saw in the 2002 election, 
+but the percentages are again pretty close, which indicates that the election was
 fairly representative of the country’s preferences. Below is a
 comparison of the difference between the seat share and the vote share in
 each election, with 2000 on the left and 2002 on the right. Both maps
@@ -105,8 +108,8 @@ either party, as compared to the existing maps.
 
 The implication of all
 this is that we can answer the question we set out to answer.
-Republicans did so well in the 2002 midterms not because they simply
+Republicans did so well in the 2002 midterms **not** because they simply
 took advantage of gerrymandering to win proportionally more seats than
 votes. There is not very much evidence to support that claim. Rather, it
-appears that their atypically increasing majority in the House was
-reflective of the country’s preferences at that time. 
+appears that their atypical performance in the midterms was in fact
+reflective of the country’s preferences and President Bush's popularity at that time.
