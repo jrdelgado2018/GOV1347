@@ -4,7 +4,7 @@
 
 [Back to Homepage](../../README.md)
 
-[View the Code]([Blog-One.Rmd](https://github.com/jrdelgado2018/GOV1347/blob/master/blogs/blog1/Blog%20One.Rmd))
+[View the Code]([Blog-One.Rmd](https://github.com/jrdelgado2018/GOV1347/blob/master/blogs/blog1/Blog%20One.Rmd)
 
 ## Introduction
 
