@@ -1,5 +1,9 @@
 # Blog Post One: Visualizing the Effects of Gerrymandering
 
+[Back to Homepage](../../README.md)
+
+[View the Code](Blog-One.Rmd)
+
 ## Introduction
 
 Hello! Welcome to my first weekly blog entry. This series will present
