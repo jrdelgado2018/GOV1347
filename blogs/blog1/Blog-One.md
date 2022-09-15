@@ -1,8 +1,10 @@
 # Blog Post One: Visualizing the Effects of Gerrymandering
 
+### September 15, 2022
+
 [Back to Homepage](../../README.md)
 
-[View the Code](Blog-One.Rmd)
+[View the Code]([Blog-One.Rmd](https://github.com/jrdelgado2018/GOV1347/blob/master/blogs/blog1/Blog%20One.Rmd))
 
 ## Introduction
 
