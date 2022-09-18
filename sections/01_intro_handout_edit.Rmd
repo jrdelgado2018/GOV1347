@@ -15,9 +15,9 @@ knitr::opts_chunk$set(echo = TRUE, fig.align="center")
 knitr::opts_knit$set(root.dir = "~/Desktop/GOV1347.nosync")
 #options(repos = list(CRAN="http://cran.rstudio.com/"))
 # required packages 
-require(tidyverse)
-require(ggplot2)
-require(sf)
+library(tidyverse)
+library(sf)
+library(usmap)
 ```
 
 # Interactive Session in \texttt{R Studio}
@@ -111,10 +111,6 @@ R_2014 <- h %>%
            D_votemargin_st = (sum(DemVotes))/
                             sum(RepVotes + DemVotes)) %>%
     rename(state = State)
-
-# load usmap
-# install.packages('plot_usmap')
-library(usmap)
 
 states_map <- usmap::us_map()
 unique(states_map$abbr)

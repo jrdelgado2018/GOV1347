@@ -1,0 +1,184 @@
+---
+title: "Blog Two"
+author: "Jackson Delgado"
+date: '2022-09-14'
+output: md_document
+---
+
+# Blog Post Two: Using the Economy to Make Predictions
+
+### September 19, 2022
+
+[Back to Homepage](../../README.md)
+
+[View the Code](https://github.com/jrdelgado2018/GOV1347/blob/master/blogs/blog2/Blog%20Two.Rmd)
+
+```{r setup, include=FALSE}
+# Set R Markdown settings and load necessary packages
+knitr::opts_chunk$set(echo=FALSE, fig.align="center")
+knitr::opts_knit$set(root.dir="~/Desktop/GOV1347.nosync")
+library(tidyverse)
+library(gridExtra)
+library(usmap)
+```
+
+```{r data, include=FALSE}
+# Read in the voting data, filter for elections where there was a Democrat and a Republican and third parties were < 10% of the vote, 
+# calculate the statewide vote percent that Democrats won, and create a column for the sitting president being a Democrat
+votes = read_csv("data/house party vote share by district 1948-2020.csv") %>% 
+  filter(ThirdVotesTotalPercent < 10 & !is.na(RepCandidate) & !is.na(DemCandidate)) %>%
+  group_by(raceYear, State) %>% 
+  summarize(DemPct = 100 * sum(DemVotes) / (sum(DemVotes) + sum(RepVotes)), .groups = 'drop') %>%
+  mutate(DemPresident = raceYear %in% c(1978, 1980, 1994, 1996, 1998, 2000, 2010, 2012, 2014, 2016))
+
+# Create a dataframe with the relevant variables from the prior election (will need this later)
+df_prev = votes %>%
+  rename(PctPrev = DemPct) %>%
+  mutate(raceYear = raceYear + 2) %>%
+  select(raceYear, State, PctPrev)
+
+# Read in the state unemployment data, filtering for the Q3 and Q4 numbers
+unemp_Q4 = read_csv("data/unemployment_state_monthly.csv") %>% 
+  filter(Month == 10) %>%
+  rename(UnempQ4 = Unemployed_prct) %>%
+  select(Year, `State and area`, UnempQ4)
+unemp_Q3 = read_csv("data/unemployment_state_monthly.csv") %>% 
+  filter(Month == 7) %>%
+  rename(UnempQ3 = Unemployed_prct) %>%
+  select(Year, `State and area`, UnempQ3)
+
+# Join the unemployment data together
+unemp = inner_join(unemp_Q4, unemp_Q3, c("Year", "State and area"))
+
+# Join the data all together, calculating a couple of extra columns
+df = votes %>% 
+  inner_join(df_prev, c("raceYear", "State")) %>%
+  inner_join(unemp, c("raceYear" = "Year", "State" = "State and area")) %>%
+  mutate(UnempPctChange = 100 * (UnempQ4 - UnempQ3) / UnempQ3,
+         DemTimesUnemp = DemPresident * UnempQ4)
+```
+
+## Introduction
+
+It is well-established that in presidential elections, the recent state of the economy is a strong predictor of the national vote share. However, in preliminary analyses, a model using the most recent quarter's GDP change to predict the nationwide popular vote share in congressional elections was shown not to be very powerful. How might we attempt to bridge the gap between these two results? Well, perhaps when considering the election of their representative in Congress, voters do not consider the United States' economy at large; rather, they consider a more localized measure of economic performance. This would make sense, because Congressional representatives are tasked to specifically advocate for their constituents, so the implication of this model is that voters are holding representatives accountable only to their job description. Let's see how well this model, and extensions of it, perform. 
+
+## Using Statewide Unemployment to Predict Statewide Vote Share
+
+The base model that this blog post will consider uses the statewide unemployment rate to predict the vote share achieved by Democrats in that state. We consider the vote share achieved by Democrats in this model because, as is described in this paper by ____, voters tend to think about the economy as an issue that Democrats "own," as opposed to a metric upon which the incumbent should be either rewarded or punished. In calculating the vote share, we consider only those ballots that were cast for one of the two major parties. We also do not consider those elections in which a third party won more than 10% of the popular vote, as they might obscure the dynamic we are attempting to uncover between the two major political parties. 
+
+```{r model1, include=FALSE}
+# Linear model using unemplpyment percent change
+model1a = lm(DemPct ~ UnempPctChange, df)
+df$Predicted1a = model1a$fitted.values
+summary(model1a)
+
+# Linear model using unemployment absolute level
+model1b = lm(DemPct ~ UnempQ4, df)
+df$Predicted1b = model1b$fitted.values
+summary(model1b)
+```
+
+Below are scatterplots for two variations of this model. The scatterplot on the left uses the percent change in the unemployment rate between Q7 and Q8 as the independent variable, whereas the scatterplot on the right uses the Q8 unemployment rate as the independent variable. Both scatterplots include dashed lines at the median values for each variable (to get our bearings around the plots), and the fitted regression lines with shaded 95% prediction intervals. Both plots exhibit a very, very weak positive correlation. This does technically agree with the model that Democrats tend to gain votes when unemployment is high because they "own" the issue, but the correlations are tiny (both less than 0.2), and it also seems that the presence of outlier points "carry" the correlations. The majority of the data in both plots is concentrated in the middle, and there is a very large variation in the vote share achieved by Democrats for any fixed unemployment rate change. So, neither model is very good. One interesting thing is that voters seem to react more to the unemployment level at the time of the election than to the percent change from the previous quarter. This is indicated by both a higher R-squared (0.015 vs. 0.0026) and a higher slope t-statistic (4.2 vs. 1.7) for the right regression vs. the left regression. The implication is that voters perhaps only care if unemployment is currently high, regardless of if it used to be much higher or much lower. 
+
+```{r model1 graphs, include=TRUE, fig.width=10, fig.height=5}
+# Scatterplot for the first model, with regression line and prediction bands
+p1 = df %>% ggplot(aes(UnempPctChange, DemPct)) +
+  geom_point() + 
+  geom_smooth(method="lm", formula = y ~ x) +
+  geom_hline(yintercept=50, lty=2) +
+  geom_vline(xintercept=0, lty=2) +
+  xlab("Q8-Q7 Change in Statewide Unemployment Rate (U)") +
+  ylab("Vote Share Achieved by Democrats (D)") +
+  ggtitle("D = 49.7 + 0.066 U")
+
+# Scatterplot for the second model, with regression line and prediction bands
+p2 = df %>% ggplot(aes(UnempQ4, DemPct)) +
+  geom_point() + 
+  geom_smooth(method="lm", formula = y ~ x) +
+  geom_hline(yintercept=50, lty=2) +
+  geom_vline(xintercept=0, lty=2) +
+  xlab("Q8 Statewide Unemployment Rate (U)") +
+  ylab("Vote Share Achieved by Democrats (D)") +
+  ggtitle("D = 46.0 + 0.61 U")
+
+grid.arrange(p1, p2, ncol=2)
+```
+
+The problem with these models is that obviously unemployment alone won't explain the vote share that went to Democrats in every state, because some states have more liberal constituencies than others. It may be the case that above average unemployment does cause above average votes to Democrats, but each state has a different calibration of what the "average" vote share to Democrats would be. In the base model, we are comparing apples to oranges.
+
+## Incorporating State Heterogeneity and the President
+
+We will now consider an improved model, one which takes that factor into account. We will consider the statewide vote share for Democrats in the previous election, which gives a good indication of how liberal or conservative the state is. We will also consider the structural effect that the party of the sitting president has on the congressional election, as congressional elections are often seen as a referendum on the performance of the president. We will allow the party of the sitting president interact with the Q8 unemployment rate in our model. This essentially gives the line a different slope when the sitting president is a Democrat, in line with ____'s findings that voters reward/punish politicians for unemployment differently depending on whether a Democrat is in office.
+
+```{r model2, include=FALSE}
+# Model incorporating the previous vote share, the unemployment level, and whether a Democrat is the president
+model2 = lm(DemPct ~ PctPrev + UnempQ4 + DemTimesUnemp, df)
+df$Predicted2 = model2$fitted.values
+summary(model2)
+
+# Bootstrapped estimate of the MSE using cross-validation
+mses = replicate(10000, {
+  in_sample_inds = sample.int(n=nrow(df), size=floor(0.75*nrow(df)), replace=FALSE)
+  in_sample = df[in_sample_inds, ]
+  out_sample = df[-in_sample_inds, ]
+  mod = lm(DemPct ~ PctPrev + UnempQ4 + DemTimesUnemp, in_sample)
+  preds = predict(mod, out_sample)
+  mean((preds - out_sample$DemPct) ** 2)
+})
+mse = mean(mses)
+rmse = sqrt(mse)
+```
+
+Below is a scatterplot that compares the predicted vote share to the actual vote share, and a dashed line indicating where the two would be equal. Clearly, the fit of this model is much better than before - the R-squared jumps to over 0.6, indicating that just over 60% of the observed variation in the vote share for Democrats can be explained by this regression model. Moreover, below is also a histogram of the residuals of this model. The overlayed curve is a Normal density curve, revealing that the residuals are indeed approximately Normal and our prediction intervals and standard error estimates are statistically valid. 
+
+```{r model3, include=FALSE}
+# Scatterplot of predicted vs. actual vote share
+p3 = df %>% ggplot(aes(Predicted2, DemPct)) +
+  geom_point() + 
+  geom_abline(slope=1, intercept=0, lty=2) +
+  xlab("Predicted Vote Share Achieved by Democrats") +
+  ylab("Actual Vote Share Achieved by Democrats") +
+  ggtitle("(vote share) = 11.1 + 0.77 (previous vote share) + (0.22 if Republican president else -0.22) (Q8 unemployment)")
+
+# Histogram of the residual with overlayed Normal density curve
+p4 = df %>% ggplot(aes(Predicted2 - DemPct)) + 
+  geom_histogram(aes(y = ..density..), binwidth=4) + 
+  xlab("Residual") + 
+  ylab("Density") + 
+  stat_function(fun = function(x) dnorm(x, 0, summary(model2)$sigma)) + 
+  ggtitle("Histogram of Residuals")
+
+grid.arrange(p3, p4, ncol=2)
+```
+
+This model is certainly an improvement to the model from before, and is also an improvement to the model that simply used national measures of economic performance, but it is far from perfect. The standard deviation of the residuals is 6.54, and this agrees with a bootstrapped cross-validation estimate of the root mean squared error of this model (which is 6.55). So, a typical deviation between this model's prediction and the actual vote share achieved by Democrats is around 6.5%, which is certainly enough to flip the tide of an election. Moreover, the coefficient for unemployment in the model has a magnitude of around 0.2. So, an unemployment of 10% (which is pretty high) will only swing the predicted vote share of Democrats by around 2%. This isn't negligible, but it is certainly less than the variation we see. So, the local economy still isn't as strong of a predictor of election outcomes as we'd perhaps like it to be. 
+
+## 2022 Prediction
+
+Below is a map that summarizes this model's prediction of the 2022 election, using the most current available unemployment data (May 2022). South Dakota does not have a prediction because there is no Democrat running in the state. A color closer to blue corresponds to a larger vote share for Democrats, and a color closer to white corresponds to a smaller vote share for Democrats. Below is also a table that gives a 95% prediction interval for each state.
+
+```{r map, include=TRUE, fig.width=10, fig.height=5, message=FALSE}
+# Get the data specifically for today
+today = read_csv("data/unemployment_state_monthly.csv") %>% 
+  filter(Year == 2022 & Month == 5) %>%
+  rename(UnempQ4 = Unemployed_prct) %>%
+  select(Year, `State and area`, UnempQ4) %>%
+  inner_join(filter(df_prev, raceYear == 2022), c("State and area" = "State")) %>%
+  mutate(DemTimesUnemp = UnempQ4) %>%
+  rename(state = `State and area`)
+
+# Get the predictions given by this model
+today$Predicted = data.frame(predict(model2, today, interval="prediction"))$fit
+today$LowerBound = data.frame(predict(model2, today, interval="prediction"))$lwr
+today$UpperBound = data.frame(predict(model2, today, interval="prediction"))$upr
+
+# Plot a US map with the predictions
+states = us_map()
+plot_usmap(data=today, regions="states", values="Predicted") +
+  theme_void() + 
+  scale_fill_gradient(low="white", high="blue", name="% of Votes", limits=range(30, 70)) + 
+  ggtitle("Predicted Vote Share Achieved by Democrats, 2022 Election")
+
+# Print the predictions and the prediction interval
+print(data.frame(select(today, state, LowerBound, Predicted, UpperBound)), digits = 3)
+```
