@@ -138,7 +138,7 @@ p3 = df %>% ggplot(aes(Predicted2, DemPct)) +
   geom_abline(slope=1, intercept=0, lty=2) +
   xlab("Predicted Vote Share Achieved by Democrats") +
   ylab("Actual Vote Share Achieved by Democrats") +
-  ggtitle("(vote share) = 11.1 + 0.77 (previous vote share) + (0.22 if Republican president else -0.22) (Q8 unemployment)")
+  ggtitle("(vote share) = \n11.1 + 0.77 (previous vote share) + \n(0.22 if G.O.P. president else -0.22) (Q8 unemp.)")
 
 # Histogram of the residual with overlayed Normal density curve
 p4 = df %>% ggplot(aes(Predicted2 - DemPct)) + 
