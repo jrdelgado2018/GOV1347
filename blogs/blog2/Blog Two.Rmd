@@ -131,7 +131,7 @@ rmse = sqrt(mse)
 
 Below is a scatterplot that compares the predicted vote share to the actual vote share, and a dashed line indicating where the two would be equal. Clearly, the fit of this model is much better than before - the R-squared jumps to over 0.6, indicating that just over 60% of the observed variation in the vote share for Democrats can be explained by this regression model. Moreover, below is also a histogram of the residuals of this model. The overlayed curve is a Normal density curve, revealing that the residuals are indeed approximately Normal and our prediction intervals and standard error estimates are statistically valid. 
 
-```{r model3, include=FALSE}
+```{r model3, include=TRUE, fig.width=10, fig.height=5}
 # Scatterplot of predicted vs. actual vote share
 p3 = df %>% ggplot(aes(Predicted2, DemPct)) +
   geom_point() + 

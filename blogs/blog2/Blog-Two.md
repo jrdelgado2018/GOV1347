@@ -97,6 +97,8 @@ revealing that the residuals are indeed approximately Normal and our
 prediction intervals and standard error estimates are statistically
 valid.
 
+<img src="Blog-Two_files/figure-markdown_strict/model3-1.png" style="display: block; margin: auto;" />
+
 This model is certainly an improvement to the model from before, and is
 also an improvement to the model that simply used national measures of
 economic performance, but it is far from perfect. The standard deviation
