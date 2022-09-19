@@ -81,7 +81,7 @@ conservative the state is (and also reflects autocorrelation between successive 
 that the party of the sitting president has on the congressional
 election, as congressional elections are often seen as a referendum on
 the performance of the president. We will allow the party of the sitting
-president interact with the Q8 unemployment rate in our model. This
+president to interact with the Q8 unemployment rate in our model. This
 essentially gives the line a different slope when the sitting president
 is a Democrat, in line with [Wright's findings](https://www.jstor.org/stable/23357704) that voters
 reward/punish other politicians for unemployment differently depending on
