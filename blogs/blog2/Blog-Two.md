@@ -52,7 +52,7 @@ that Democrats tend to gain votes when unemployment is high because they
 it also seems that the presence of outlier points “carry” the
 correlations. The majority of the data in both plots is concentrated in
 the middle, and there is a very large variation in the vote share
-achieved by Democrats for any fixed unemployment rate change. So,
+achieved by Democrats for any fixed unemployment rate. So,
 neither model is very good. One interesting thing is that voters seem to
 react more to the unemployment level at the time of the election than to
 the percent change from the previous quarter. This is indicated by both
