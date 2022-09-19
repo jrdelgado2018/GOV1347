@@ -9,9 +9,9 @@ Code](https://github.com/jrdelgado2018/GOV1347/blob/master/blogs/blog2/Blog%20Tw
 
 ## Introduction
 
-It is well-established that in presidential elections, the recent state
+It is well-established ([by Healy and Lenz,](https://www.jstor.org/stable/24363467) for example) that in presidential elections, the recent state
 of the economy is a strong predictor of the national vote share.
-However, in preliminary analyses, a model using the most recent
+However, in a preliminary analysis, a model using the most recent
 quarter’s GDP change to predict the nationwide popular vote share in
 congressional elections was shown not to be very powerful. How might we
 attempt to bridge the gap between these two results? Well, perhaps when
@@ -29,9 +29,10 @@ perform.
 The base model that this blog post will consider uses the statewide
 unemployment rate to predict the vote share achieved by Democrats in
 that state. We consider the vote share achieved by Democrats in this
-model because, as is described in this paper by \_\_\_\_, voters tend to
-think about the economy as an issue that Democrats “own,” as opposed to
+model because, as per [Wright](https://www.jstor.org/stable/23357704), voters tend to
+think about unemployment as an issue that Democrats “own,” as opposed to
 a metric upon which the incumbent should be either rewarded or punished.
+Data on statewide unemployment rates is given by the [BLS](https://www.bls.gov/web/laus.supp.toc.htm).
 In calculating the vote share, we consider only those ballots that were
 cast for one of the two major parties. We also do not consider those
 elections in which a third party won more than 10% of the popular vote,
@@ -63,10 +64,10 @@ lower.
 
 <img src="Blog-Two_files/figure-markdown_strict/model1 graphs-1.png" style="display: block; margin: auto;" />
 
-The problem with these models is that obviously unemployment alone won’t
+The problem with these models is that _obviously_ unemployment alone won’t
 explain the vote share that went to Democrats in every state, because
 some states have more liberal constituencies than others. It may be the
-case that above average unemployment does cause above average votes to
+case that above average unemployment _does_ cause above average votes to
 Democrats, but each state has a different calibration of what the
 “average” vote share to Democrats would be. In the base model, we are
 comparing apples to oranges.
@@ -76,15 +77,15 @@ comparing apples to oranges.
 We will now consider an improved model, one which takes that factor into
 account. We will consider the statewide vote share for Democrats in the
 previous election, which gives a good indication of how liberal or
-conservative the state is. We will also consider the structural effect
+conservative the state is (and also reflects autocorrelation between successive elections). We will also consider the structural effect
 that the party of the sitting president has on the congressional
 election, as congressional elections are often seen as a referendum on
 the performance of the president. We will allow the party of the sitting
 president interact with the Q8 unemployment rate in our model. This
 essentially gives the line a different slope when the sitting president
-is a Democrat, in line with \_\_\_\_’s findings that voters
-reward/punish politicians for unemployment differently depending on
-whether a Democrat is in office.
+is a Democrat, in line with [Wright's findings](https://www.jstor.org/stable/23357704) that voters
+reward/punish other politicians for unemployment differently depending on
+whether the sitting president is a Democrat.
 
 Below is a scatterplot that compares the predicted vote share to the
 actual vote share, and a dashed line indicating where the two would be
@@ -101,7 +102,7 @@ valid.
 
 This model is certainly an improvement to the model from before, and is
 also an improvement to the model that simply used national measures of
-economic performance, but it is far from perfect. The standard deviation
+economic performance, but it is _far_ from perfect. The standard deviation
 of the residuals is 6.54, and this agrees with a bootstrapped
 cross-validation estimate of the root mean squared error of this model
 (which is 6.55). So, a typical deviation between this model’s prediction
@@ -111,7 +112,7 @@ coefficient for unemployment in the model has a magnitude of around 0.2.
 So, an unemployment of 10% (which is pretty high) will only swing the
 predicted vote share of Democrats by around 2%. This isn’t negligible,
 but it is certainly less than the variation we see. So, the local
-economy still isn’t as strong of a predictor of election outcomes as
+economy _still_ isn’t as strong of a predictor of election outcomes as
 we’d perhaps like it to be.
 
 ## 2022 Prediction
