@@ -17,7 +17,7 @@ predictive model using a couple of insights from both groups.
 
 ### The Economist
 
-In a nutshell, The Economist approaches their prediction task in a two
+In a nutshell, [The Economist's model](https://www.economist.com/graphic-detail/2018/05/24/introducing-our-prediction-model-for-americas-mid-term-elections?utm_medium=cpc.adword.pd&utm_source=google&ppccampaignID=17210591673&ppcadID=&utm_campaign=a.22brand_pmax&utm_content=conversion.direct-response.anonymous&gclid=Cj0KCQjw1bqZBhDXARIsANTjCPLmClpV2iWBRHwk8na9pefa5DFt58js24RFO3LYhMP5Ns3eSJc-i3MaAhYsEALw_wcB&gclsrc=aw.ds) approaches their prediction task in a two
 step process. The first step is to estimate the overarching national
 political sentiment - the nationwide popular vote shares that will be
 achieved by Democrats and Republicans. They use polling to inform this
@@ -45,10 +45,10 @@ election.
 
 ### FiveThirtyEight
 
-This model predicts the midterm election in one step. The primary tool
+[This model](https://fivethirtyeight.com/methodology/how-fivethirtyeights-house-and-senate-models-work/) predicts the midterm election in one step. The primary tool
 for this prediction is polling - and FiveThirtyEight uses pretty much
 any poll that they can get their hands on, as long as it comes from a
-professional source. Reflecting Galton’s observation that an aggregation
+professional source. Reflecting [Galton’s observation](https://www.nature.com/articles/075450a0) that an aggregation
 of many guesses will tend to outperform one single guess,
 FiveThirtyEight takes great care to weight each poll appropriately.
 Weighting factors include how recently the poll was taken, the
