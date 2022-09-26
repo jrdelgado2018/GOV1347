@@ -138,7 +138,7 @@ parameter. So, while a fat-tailed and skewed distribution certainly
 makes sense, I again have a marginal preference for FiveThirtyEight’s
 approach of modeling the correlation structure between districts instead
 of the distributions of independent districts (especially considering
-the correlated polling errors we saw in 2016!). Again, though, I find
+the [correlated polling errors we saw in 2016!](https://fivethirtyeight.com/features/election-update-why-our-model-is-more-bullish-than-others-on-trump/)). Again, though, I find
 both forecasts to be incredibly impressive.
 
 ## 2022 Forecast Update
@@ -156,7 +156,7 @@ Democrats if they are popular and a Republican president is in office.
 
 Interestingly, in this model, the economic variable that becomes more
 significant is the Q7-Q8 percent change in unemployment rate, not simply
-the Q8 unemployment rate. Last week, I concluded that voters tend to
+the Q8 unemployment rate. [Last week](../../blogs/blog2/Blog-Two.md), I concluded that voters tend to
 respond more to the absolute Q8 rate, so does this finding contradict
 that? It’s not quite that simple. Last week’s model isolated the effect
 of unemployment on voter choice, but this week’s model includes another
