@@ -147,14 +147,33 @@ grid.arrange(p3, p4, ncol=2)
 Below is a map that summarizes the point estimates of this model's prediction of the 2022 election, using the most current available unemployment data and generic poll data. South Dakota again does not have a prediction because there is no Democrat running in the state. A color closer to blue corresponds to a larger vote share for Democrats, and a color closer to white corresponds to a smaller vote share for Democrats. Below is also a table that gives a 95% prediction interval for each state.
 
 ```{r map, include=TRUE, fig.width=10, fig.height=5, message=FALSE}
-# Get the data specifically for today
-today = read_csv("data/unemployment_state_monthly.csv") %>% 
-  filter(Year == 2022 & Month == 5) %>%
+# Get the polls for today
+polls_today = read_csv("data/538_generic_ballot_averages_2018-2022.csv") %>% 
+  filter(month == 9 & cycle == 2022) %>%
+  mutate(isDemocrat = candidate == "Democrats") %>%
+  group_by(cycle) %>%
+  summarize(D = sum(pct_estimate * isDemocrat) / sum(isDemocrat), R = sum(pct_estimate * (1 - isDemocrat)) / sum(1 - isDemocrat)) %>%
+  mutate(DemPolls = D / (D + R))
+
+# Read in the state unemployment data, filtering for the Q3 and Q4 numbers
+unemp_Q4_today = read_csv("data/unemployment_state_monthly.csv") %>% 
+  filter(Month == 5 & Year == 2022) %>%
   rename(UnempQ4 = Unemployed_prct) %>%
-  select(Year, `State and area`, UnempQ4) %>%
+  select(Year, `State and area`, UnempQ4)
+unemp_Q3_today = read_csv("data/unemployment_state_monthly.csv") %>% 
+  filter(Month == 2 & Year == 2022) %>%
+  rename(UnempQ3 = Unemployed_prct) %>%
+  select(Year, `State and area`, UnempQ3)
+unemp_today = inner_join(unemp_Q4_today, unemp_Q3_today, c("Year", "State and area"))
+
+# Get the data specifically for today
+today = unemp_today %>%
   inner_join(filter(df_prev, raceYear == 2022), c("State and area" = "State")) %>%
-  mutate(DemTimesUnemp = UnempQ4) %>%
-  rename(state = `State and area`)
+  rename(state = `State and area`) %>%
+  inner_join(polls_today, c("Year" = "cycle")) %>%
+  mutate(UnempPctChange = 100 * (UnempQ4 - UnempQ3) / UnempQ3,
+         DemTimesPct = UnempPctChange, 
+         DemTimesPolls = DemPolls)
 
 # Get the predictions given by this model
 today$Predicted = data.frame(predict(model2, today, interval="prediction"))$fit
