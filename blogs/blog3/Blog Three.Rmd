@@ -190,3 +190,8 @@ plot_usmap(data=today, regions="states", values="Predicted") +
 # Print the predictions and the prediction interval
 print(data.frame(select(today, state, LowerBound, Predicted, UpperBound)), digits = 3)
 ```
+
+```{r corr, include=FALSE}
+corr_df = df %>% mutate(Diff = DemPct - Predicted2) %>% select(raceYear, State, Diff) %>% spread(State, Diff) %>% drop_na() %>% select(-raceYear)
+cor()
+```
