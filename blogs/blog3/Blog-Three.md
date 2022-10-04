@@ -17,7 +17,7 @@ predictive model using a couple of insights from both groups.
 
 ### The Economist
 
-In a nutshell, The Economist approaches their prediction task in a two
+In a nutshell, [The Economist's model](https://www.economist.com/graphic-detail/2018/05/24/introducing-our-prediction-model-for-americas-mid-term-elections?utm_medium=cpc.adword.pd&utm_source=google&ppccampaignID=17210591673&ppcadID=&utm_campaign=a.22brand_pmax&utm_content=conversion.direct-response.anonymous&gclid=Cj0KCQjw1bqZBhDXARIsANTjCPLmClpV2iWBRHwk8na9pefa5DFt58js24RFO3LYhMP5Ns3eSJc-i3MaAhYsEALw_wcB&gclsrc=aw.ds) approaches their prediction task in a two
 step process. The first step is to estimate the overarching national
 political sentiment - the nationwide popular vote shares that will be
 achieved by Democrats and Republicans. They use polling to inform this
@@ -45,10 +45,10 @@ election.
 
 ### FiveThirtyEight
 
-This model predicts the midterm election in one step. The primary tool
+[This model](https://fivethirtyeight.com/methodology/how-fivethirtyeights-house-and-senate-models-work/) predicts the midterm election in one step. The primary tool
 for this prediction is polling - and FiveThirtyEight uses pretty much
 any poll that they can get their hands on, as long as it comes from a
-professional source. Reflecting Galton’s observation that an aggregation
+professional source. Reflecting [Galton’s observation](https://www.nature.com/articles/075450a0) that an aggregation
 of many guesses will tend to outperform one single guess,
 FiveThirtyEight takes great care to weight each poll appropriately.
 Weighting factors include how recently the poll was taken, the
@@ -138,7 +138,7 @@ parameter. So, while a fat-tailed and skewed distribution certainly
 makes sense, I again have a marginal preference for FiveThirtyEight’s
 approach of modeling the correlation structure between districts instead
 of the distributions of independent districts (especially considering
-the correlated polling errors we saw in 2016!). Again, though, I find
+the [correlated polling errors we saw in 2016!](https://fivethirtyeight.com/features/election-update-why-our-model-is-more-bullish-than-others-on-trump/)). Again, though, I find
 both forecasts to be incredibly impressive.
 
 ## 2022 Forecast Update
@@ -156,7 +156,7 @@ Democrats if they are popular and a Republican president is in office.
 
 Interestingly, in this model, the economic variable that becomes more
 significant is the Q7-Q8 percent change in unemployment rate, not simply
-the Q8 unemployment rate. Last week, I concluded that voters tend to
+the Q8 unemployment rate. [Last week](../../blogs/blog2/Blog-Two.md), I concluded that voters tend to
 respond more to the absolute Q8 rate, so does this finding contradict
 that? It’s not quite that simple. Last week’s model isolated the effect
 of unemployment on voter choice, but this week’s model includes another
