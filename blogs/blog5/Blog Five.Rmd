@@ -1,0 +1,239 @@
+---
+title: "Blog Five"
+author: "Jackson Delgado"
+date: '2022-10-11'
+output: md_document
+---
+
+# Blog Post Five: The Air War
+
+### October 11, 2022
+
+[Back to Homepage](../../README.md)
+
+[View the Code](https://github.com/jrdelgado2018/GOV1347/blob/master/blogs/blog5/Blog%20Five.Rmd)
+
+```{r setup, include=FALSE}
+# Set R Markdown settings and load necessary packages
+knitr::opts_chunk$set(echo=FALSE, fig.align="center")
+knitr::opts_knit$set(root.dir="~/Desktop/GOV1347.nosync")
+library(tidyverse)
+library(gridExtra)
+library(usmap)
+library(sf)
+library(rmapshaper)
+library(lubridate)
+```
+
+```{r data, include=FALSE}
+# Read in the voting data, filter for elections where there was a Democrat and a Republican and third parties were < 10% of the vote, 
+# and create columns for whether either candidate is the incumbent
+votes = read_csv("data/house party vote share by district 1948-2020.csv") %>% 
+  filter(ThirdVotesTotalPercent < 10 & !is.na(RepCandidate) & !is.na(DemCandidate)) %>%
+  mutate(DemIncumbent = DemStatus == "Incumbent", 
+         RepIncumbent = RepStatus == "Incumbent",
+         DemPct = 100 * DemVotes / (DemVotes + RepVotes)) %>%
+  rowwise() %>%
+  mutate(district_num = ifelse(district_num == 0, 1, district_num)) %>%
+  ungroup()
+
+# Read the ads data in, calculate total spending within 1 month of election for each district
+# Also need to convert to a spread format
+ads = read_csv("data/ads_issues_2012-2018.csv") %>%
+  mutate(year = year(airdate),
+         month = month(airdate), 
+         District = as.numeric(district)) %>%
+  filter(year == cycle & month %in% c(10, 11) & !is.na(party)) %>%
+  group_by(cycle, state, District, party) %>%
+  summarize(spending = sum(est_cost)) %>%
+  spread(party, spending) %>%
+  rename(DemSpending = Democrat, 
+         RepSpending = Republican)
+
+# Join the votes and the ads together
+votes_and_ads = left_join(votes, ads, c("raceYear" = "cycle", "State" = "state", "district_num" = "District"))
+
+# Create a dataframe with the relevant variables from the prior election (will need this later)
+df_prev = votes_and_ads %>%
+  rename(DemIncPrev = DemIncumbent, 
+         RepIncPrev = RepIncumbent, 
+         DemPctPrev = DemPct,
+         DemSpendingPrev = DemSpending, 
+         RepSpendingPrev = RepSpending) %>%
+  mutate(raceYear = raceYear + 2) %>%
+  select(raceYear, CD, DemIncPrev, RepIncPrev, DemPctPrev, DemSpendingPrev, RepSpendingPrev)
+
+# Read in the state unemployment data, filtering for the Q3 and Q4 numbers, and join together
+unemp_Q4 = read_csv("data/unemployment_state_monthly.csv") %>% 
+  filter(Month == 10) %>%
+  rename(UnempQ4 = Unemployed_prct) %>%
+  select(Year, `State and area`, UnempQ4)
+
+# Get the poll data, filter for polls within 1 month of the election, and take simple average of results
+polls = read_csv("data/polls_df.csv") %>% 
+  filter(emonth %in% c(10, 11)) %>%
+  mutate(isDemocrat = party == "D") %>%
+  group_by(year) %>%
+  summarize(D = sum(support * isDemocrat) / sum(isDemocrat), R = sum(support * (1 - isDemocrat)) / sum(1 - isDemocrat)) %>%
+  mutate(DemPolls = D / (D + R))
+
+# Join the data all together, calculating a couple of extra columns
+df = votes_and_ads %>% 
+  left_join(df_prev, c("raceYear", "CD")) %>%
+  left_join(unemp_Q4, c("raceYear" = "Year", "State" = "State and area")) %>%
+  left_join(polls, c("raceYear" = "year")) %>%
+  mutate(DemPresident = raceYear %in% c(1978, 1980, 1994, 1996, 1998, 2000, 2010, 2012, 2014, 2016),
+         DemIncFirstTerm = DemIncumbent & !DemIncPrev, 
+         RepIncFirstTerm = RepIncumbent & !RepIncPrev)
+```
+
+## Model Update: Part One
+
+This week, I will be updating my model to take "the air war," campaign advertising, into account. I will also move from predicting vote share at the state-level to predicting vote share at the district-level, using the insights I drew from my state-level models of previous weeks. 
+
+Many elements of this model are the same as they were in [last week's](https://jrdelgado2018.github.io/GOV1347/blogs/blog4/Blog-Four.html) model. We again only consider those races in which there is both a Democrat and a Republican running, and third party candidates acquire less than 10% of the vote, since other cases obscure the two-party dynamic we are trying to pick up on. To predict the vote share in each district, we use the vote share from the previous election to set a baseline for how liberal or conservative the particular district is. We include the average of generic ballot poll results within two months of the election, to see what national sentiment is like; and include flags for whether the candidate is an incumbent (and what his party is), to account for the incumbency advantage. 
+
+We also include the statewide unemployment rate to recognize that many voters are influenced by the state of the economy - though in contrast to last week's model, the Q8 unemployment rate is a better predictor than the Q7-Q8 percent change in unemployment rate this time around. Recall that [Wright](https://www.jstor.org/stable/23357704), in his paper, finds that both measures of the unemployment rate are predictive of voter outcomes, but that the flat Q8 rate is slightly more predictive. Our return to this conclusion is interesting, since over the course of the last few weeks we've seen that depending on which other predictors we use, the measurement of unemployment that is more predictive changes. Perhaps this lack of robustness indicates that the state of the local economy, while relevant, is a lower-order priority in the mind of voters. Or, perhaps this is purely due to random chance, since we're looking at many different (but related) models and both the absolute Q8 rate and the Q7-Q8 percent change are intended to measure the same underlying effect. 
+
+Another departure from last week's model is that we no longer allow the presence of a Democrat president interact with the coefficients that predict the Democrat candidate's vote share in the district. We make this choice simply due to limitations presented by the data - we only have data on the air war from the last few elections, in which there is not sufficient variation in the party of the sitting president to justify stratifying our predictors like that. If we had more data, we would certainly bring this element of our model back, since we recall [Wright's conclusions](https://www.jstor.org/stable/23357704) that voters do reward or punish the Democrat congressional candidate differently depending on whether a Democrat president is in office. 
+
+Finally, we augment our model as compared to last week by including the effect of campaign advertisements. We have data on each specific ad run in the last few elections, which includes information such as the tone/purpose of the advertisement and the estimated amount spent on the advertisement. This means that we have a few decisions to make regarding how to use this data. [Huber and Arceneaux](https://www.jstor.org/stable/4620110), in an observational study of a "natural" experiment, find that advertisements do __not__ actually educate voters on the issues at hand, and that __both__ political and personal messages have important persuasive effects on voters. This suggests that we should not stratify the advertisements based on their content, and should instead only consider the total spending (which is a proxy for the reach of the ads). On the other hand, [Gerber et al.](https://www.jstor.org/stable/41480831), in an actual experiment, find that the persuasive effects of campaign advertisements decay __very__ quickly, instead of leaving a permanent imprint on voters' beliefs. This suggests that we should only consider those advertisements that aired very close to Election Day, and we settle on a one month window (instead of the one week cutoff that Gerber et al. suggest) so that we have sufficient data for our analysis.
+
+Below is output that summarizes our model's fit:
+
+```{r model1, include=TRUE}
+model = lm(DemPct ~ DemPctPrev + DemPolls + UnempQ4 + DemIncumbent + RepIncumbent + DemSpending + RepSpending, df)
+
+# Bootstrapped estimate of the MSE using cross-validation
+mses = replicate(10000, {
+  in_sample_inds = sample.int(n=nrow(model$model), size=floor(0.75*nrow(model$model)), replace=FALSE)
+  in_sample = model$model[in_sample_inds, ]
+  out_sample = model$model[-in_sample_inds, ]
+  mod = lm(DemPct ~ DemPctPrev + DemPolls + UnempQ4 + DemIncumbent + RepIncumbent + DemSpending + RepSpending, in_sample)
+  preds = predict(mod, out_sample)
+  mean((preds - out_sample$DemPct) ** 2)
+})
+mse = mean(mses)
+rmse = sqrt(mse)
+
+summary(model)
+```
+
+We find that all our coefficients are significant, which is great (and what we would expect based on the theoretical story of our model). The signs of the coefficient also all make sense. The vote share achieved by the Democrat candidate is positively related to the previous election's vote share, how well Democrats are doing in the generic ballot, the unemployment rate (since the Democrats "own" this issue), if the Democrat candidate is the incumbent, and the amount spent on Democrat ads. The vote share achieved by the Democrat candidate is negatively related to the presence of a Republican incumbent, and the amount spent on Republican ads. 
+
+Our R^2 went down from where it was [last week](https://jrdelgado2018.github.io/GOV1347/blogs/blog4/Blog-Four.html), dropping to around 53%, but this is not cause for alarm. In last week's model, we predicted state-wide vote shares, using a larger number of elections. In this week's model, we are predicting district-wide vote shares, using a smaller number of elections. And since there are many more congressional districts than states, the variance of our dependent variable has increased quite a bit, so we would expect our R^2 to correspondingly decrease. The standard error of our residuals actually __decreased__ slightly as compared to last week, dropping to 5.4, and this is confirmed by our bootstrapped estimate of the root mean squared error dropping to 5.5. So, our predictions actually got slightly __more__ precise as compared to last week, which is heartening. 
+
+Interestingly, the coefficients with the smallest magnitudes are far-and-away the coefficients for campaign spending. This does make sense in the context of [Gerber et al.](https://www.jstor.org/stable/41480831), since they show that including the cumulative effect of many weeks' advertisements (which we are essentially doing by calculating the total spending in the final month of the campaign) lessens the measured effect of the air war. Perhaps in future weeks, I should consider advertisement spending more carefully, using only those ads aired in the last week of the campaign (and inferring this spending based on previous spending when this data is not available). 
+
+Here is the usual plot of predicted vote share versus actual vote share, with the points decently close to the 45 degree line. Side-by-side is a histogram of the residuals, which again looks approximately normal and validates our statistical assumptions about the model. 
+
+```{r graphs1, include=TRUE, fig.width=10, fig.height=5}
+# Get the data and fitted values from the model, because the input df has missing data
+df2 = model$model
+df2$Predicted = model$fitted.values
+
+# Scatterplot of predicted vs. actual vote share
+p1 = df2 %>% ggplot(aes(Predicted, DemPct)) +
+  geom_point() + 
+  geom_abline(slope=1, intercept=0, lty=2) +
+  xlab("Predicted Vote Share Achieved by Democrat Candidate") +
+  ylab("Actual Vote Share Achieved by Democrat Candidate")
+
+# Histogram of the residual with overlayed Normal density curve
+p2 = df2 %>% ggplot(aes(Predicted - DemPct)) + 
+  geom_histogram(aes(y = ..density..), binwidth=4) + 
+  xlab("Residual") + 
+  ylab("Density") + 
+  stat_function(fun = function(x) dnorm(x, 0, summary(model)$sigma)) + 
+  ggtitle("Histogram of Residuals")
+
+grid.arrange(p1, p2, ncol=2)
+```
+
+## Model Update: Part Two
+
+Our updated model certainly looks useful, but a predictive model is only useful to the extent that we know the values of the predictors "ahead of time." And here, we run into a problem. It's great that we have a model that uses the total spending on advertisements in the month leading up to Election Day to predict vote share, but we won't know the total spending on advertisements until __after__ Election Day! And at that point, the election will have already happened, so we won't need to use our model to predict it anymore. 
+
+So, in order to use our model to predict the 2022 midterms, we need a way to predict how much spending there will be on campaign advertisements this October. We could simply use the 2018 values (since they are the most recent values we have), but we will instead opt to train a simple model that predicts advertisement spending in one year from advertisement spending in the previous year.
+
+```{r model 2, include=TRUE}
+df_ads1 = df %>% 
+  select(DemSpending, DemSpendingPrev, DemIncumbent, DemIncFirstTerm) %>%
+  rename(Spending = DemSpending, 
+         SpendingPrev = DemSpendingPrev, 
+         Incumbent = DemIncumbent, 
+         FirstTerm = DemIncFirstTerm)
+df_ads2 = df %>% 
+  select(RepSpending, RepSpendingPrev, RepIncumbent, RepIncFirstTerm) %>%
+  rename(Spending = RepSpending, 
+         SpendingPrev = RepSpendingPrev, 
+         Incumbent = RepIncumbent, 
+         FirstTerm = RepIncFirstTerm)
+df_ads = rbind(df_ads1, df_ads2)
+
+# model2 = lm(Spending ~ SpendingPrev + Incumbent + FirstTerm, df_ads)
+model2 = lm(Spending ~ SpendingPrev + Incumbent, df_ads)
+summary(model2)
+```
+
+Above is a printout of the fit of our simple model. We use data on both Democrat spending and Republican spending, and predict the spending in one election from the spending in the previous election, adding a flag for whether the candidate is an incumbent or not. We see exactly what we might expect - spending is positively correlated with past spending, but incumbents tend to spend less because they have an advantage. Both variables are significant, and the R^2 is just over 30%, which is not super high but is an improvement over just using the previous election's spending as our prediction for the next election's spending. 
+
+We unfortunately do not have data on 2020 campaign spending, so we will have to use the 2018 spending in this model to predict the 2022 spending. This is not ideal, and adds an additional source of error to our final prediction, but there is not much we can do about it. 
+
+## 2022 Prediction
+
+With all the pieces in place, we can finally make our district-level vote share prediction for 2022. At the very bottom of this post is a table showing our predictions in each district for which we have advertising data, complete with lower and upper bounds forming a 95% prediction interval. 
+
+To produce a nationwide vote share prediction, we can make use of the fact that districts are of approximately equal size. This means that in aggregating the district vote shares to estimate a nationwide vote share prediction, we should use weights that are roughly equal among the districts. So, we will take the average of predictions for all of our districts. 
+
+If we further assume that errors between districts are uncorrelated, we can also take the average of the lower and upper bounds, to form a 95% prediction interval for our prediction. As per [FiveThirtyEight](https://fivethirtyeight.com/methodology/how-fivethirtyeights-house-and-senate-models-work/), this might not be the most reasonable assumption to make, so our prediction interval is likely underestimating the true error in our prediction. Nonetheless, it is a useful baseline for us to consider. 
+
+Our nationwide prediction, then, is *46.6%* of the two-party vote share going to Democrats, with a lower bound of *36%* and an upper bound of *57%*. It's important to remember that we formed this prediction based only on those districts for which we have data on advertising, which tend to be the more competitive districts. This is a somewhat representative sample of all voting districts, since it is not biased towards more liberal or more conservative districts, but it is not a perfectly representative sample, since some districts are very noncompetitive. So, in the future, we might think about forming one model (such as this model) for the competitive districts, and a second model for the noncompetitive districts, and combining those models' predictions to form our final nationwide prediction. 
+
+```{r voteshare, include=TRUE, warning=FALSE, message=FALSE}
+# Get the polls for today
+polls_today = read_csv("data/538_generic_ballot_averages_2018-2022.csv") %>% 
+  filter(month == 9 & cycle == 2022) %>%
+  mutate(isDemocrat = candidate == "Democrats") %>%
+  group_by(cycle) %>%
+  summarize(D = sum(pct_estimate * isDemocrat) / sum(isDemocrat), R = sum(pct_estimate * (1 - isDemocrat)) / sum(1 - isDemocrat)) %>%
+  mutate(DemPolls = D / (D + R))
+
+# Get the Q4 unemployment for today
+unemp_Q4_today = read_csv("data/unemployment_state_monthly.csv") %>% 
+  filter(Month == 5 & Year == 2022) %>%
+  rename(UnempQ4 = Unemployed_prct) %>%
+  select(Year, `State and area`, UnempQ4)
+
+# Get the incumbency data for today
+inc_today = read_csv("data/incumb_dist_1948-2022.csv") %>%
+  filter(year == 2020) %>%
+  mutate(RepIncumbent = winner_candidate == "RepCandidate",
+         DemIncumbent = winner_candidate == "DemCandidate")
+
+# Get the spending for today
+spending_today = df_prev %>%
+  filter(raceYear == 2020) %>%
+  select(CD, DemSpendingPrev, RepSpendingPrev)
+
+# Get the data specifically for today
+today = votes_and_ads %>%
+  rename(DemPctPrev = DemPct) %>%
+  mutate(raceYear = raceYear + 2) %>%
+  filter(raceYear == 2022) %>%
+  select(State, CD, DemPctPrev, district_id) %>%
+  left_join(unemp_Q4_today, c("State" = "State and area")) %>%
+  left_join(polls_today, c("Year" = "cycle")) %>%
+  left_join(spending_today, "CD") %>%
+  left_join(inc_today, "district_id") %>%
+  mutate(DemSpending = 690800 -272300*DemIncumbent + 0.5625*DemSpendingPrev,
+         RepSpending = 690800 -272300*RepIncumbent + 0.5625*RepSpendingPrev) %>%
+  select(district_id, DemPctPrev, DemPolls, UnempQ4, DemIncumbent, RepIncumbent, DemSpending, RepSpending) %>%
+  drop_na()
+
+today$Predicted = data.frame(predict(model, today, interval="prediction"))$fit
+today$LowerBound = data.frame(predict(model, today, interval="prediction"))$lwr
+today$UpperBound = data.frame(predict(model, today, interval="prediction"))$upr
+
+print(data.frame(select(today, district_id, LowerBound, Predicted, UpperBound)), digits = 3)
+```
