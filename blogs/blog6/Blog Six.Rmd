@@ -1,0 +1,251 @@
+---
+title: "Blog Six"
+author: "Jackson Delgado"
+date: '2022-10-19'
+output: md_document
+---
+
+# Blog Post Six: The Ground Game
+
+### October 19, 2022
+
+[Back to Homepage](../../README.md)
+
+[View the Code](https://github.com/jrdelgado2018/GOV1347/blob/master/blogs/blog6/Blog%20Six.Rmd)
+
+```{r setup, include=FALSE}
+# Set R Markdown settings and load necessary packages
+knitr::opts_chunk$set(echo=FALSE, fig.align="center")
+knitr::opts_knit$set(root.dir="~/Desktop/GOV1347.nosync")
+library(tidyverse)
+library(gridExtra)
+library(usmap)
+library(sf)
+library(rmapshaper)
+library(lubridate)
+
+# load geographic data
+get_congress_map = function() {
+  tmp_file = tempfile()
+  tmp_dir = tempdir()
+  download.file("https://cdmaps.polisci.ucla.edu/shp/districts114.zip", tmp_file)
+  unzip(zipfile=tmp_file, exdir=tmp_dir)
+  fpath = paste(tmp_dir, "districtShapes/districts114.shp", sep="/")
+  st_read(fpath)
+}
+
+districts = get_congress_map()
+districts$DISTRICT = as.numeric(districts$DISTRICT)
+```
+
+```{r data, include=FALSE}
+# Read in the voting data, filter for elections where there was a Democrat and a 
+# Republican, create columns for whether either candidate is the incumbent, join 
+# with CVAP data to calculate turnout, join with Inside Elections ratings data, 
+# and join with relevant variables from the previous election
+votes = read_csv("data/incumb_dist_1948-2020.csv") %>%
+  filter(!is.na(RepCandidate) & !is.na(DemCandidate)) %>%
+  inner_join(read_csv("data/cvap_district_2012-2020_clean.csv"), by=c("st_cd_fips" = "geoid", "year" = "year")) %>% 
+  inner_join(read_csv("data/inside_elections.csv"), by=c("st_cd_fips" = "geoid", "year" = "year")) %>% 
+  mutate(DemIncumbent = inc_party == "Democrat", 
+         RepIncumbent = inc_party == "Republican", 
+         Turnout = 100 * (DemVotes + RepVotes) / cvap) %>%
+  rename(DemPct = DemVotesMajorPercent)
+votes = votes %>%
+  left_join((
+    votes %>% 
+    mutate(year = year + 4) %>%
+    select(year, st_cd_fips, DemPct, Turnout) %>%
+    rename(TurnoutPrev = Turnout, DemPctPrev = DemPct)
+  ), c("year", "st_cd_fips"))
+
+# Read the ads data in, calculate total spending for each district
+ads = read_csv("data/ads_issues_2012-2018.csv") %>%
+  group_by(cycle, st_cd_fips) %>%
+  summarize(TotalSpending = sum(est_cost), 
+            DemSpending = sum(est_cost * (party == "Democrat")), 
+            RepSpending = sum(est_cost * (party == "Republican")))
+ads[is.na(ads)] = 0
+
+# Read in the state unemployment data, filtering for the Q4 numbers
+unemp_Q4 = read_csv("data/unemployment_state_monthly.csv") %>% 
+  filter(Month == 10) %>%
+  rename(UnempQ4 = Unemployed_prct) %>%
+  select(Year, `State and area`, UnempQ4)
+
+# Get the poll data, filter for polls within 1 month of the election, and take simple average of results
+polls = read_csv("data/polls_df.csv") %>% 
+  filter(emonth %in% c(10, 11)) %>%
+  mutate(isDemocrat = party == "D") %>%
+  group_by(year) %>%
+  summarize(D = sum(support * isDemocrat) / sum(isDemocrat), R = sum(support * (1 - isDemocrat)) / sum(1 - isDemocrat)) %>%
+  mutate(DemPolls = D / (D + R))
+```
+
+## Introduction
+
+In this blog post, I will think carefully about how to incorporate voter turnout into my model, and combine this analysis with my existing findings about the economy, incumbency, and expert predictions. I will also move from a linear model to a generalized linear model, forecasting a binomial vote distribution for each district instead of a single point estimate of Democrat vote share.
+
+## Thinking About Turnout
+
+As we saw [last week](https://jrdelgado2018.github.io/GOV1347/blogs/blog5/Blog-Five.html), the "air war" did not impact our predictive model very much, because the coefficient on our advertisement spending data was very low. Our interpretation of this was that it fell in line with findings from [by Gerber et al.](https://www.jstor.org/stable/41480831) that advertisements have have an effect that deteriorates almost completely after one week.
+
+We know, thanks to [Huber and Arceneaux](https://www.jstor.org/stable/4620110), that campaign advertisements do not generally mobilize voters to go to the polls when they otherwise would have stayed home; rather, they subliminally persuade voters to change how they approach the decision of who to vote for. However, we also know, thanks to [Enos and Fowler](https://www.cambridge.org/core/journals/political-science-research-and-methods/article/abs/aggregate-effects-of-largescale-campaigns-on-voter-turnout/20C500B0DE62227873FD24CB3555F779), that the "ground game" legitimately *does* mobilize voters to get to the polls when they otherwise would not have. The composition of the voter pool likely impacts the result of an election, so we would like to incorporate this information into our predictive models. Unfortunately, we do not have access to detailed data about ground game operations on the district level, like the number of field offices or campaign employees. What we *do* have access to is somewhat robust data on advertising spending, which we know correlates with ground game activities. 
+
+So, I propose using campaign advertising spending as a proxy for ground game activity, with which we can predict voter turnout. We want to predict voter turnout as a first step since our ultimate goal is to forecast the 2022 midterm elections, and we of course do not know what voter turnout will look like on November 8th! 
+
+Below presents a simple regression model predicting the voter turnout (as a percentage of the civilian voting age population of the district) from the total campaign advertisement spending in the district (from all parties), and from the voter turnout in the previous election. In this case, by "previous election" I mean the election from four years ago, so that midterm elections line up and presidential elections line up. This is because voter turnout is much higher in presidential years, due to the high stakes office being elected. Also, the campaign spending data gives us information like the tone and purpose of each ad, which might give us a clue about the style of the ground game used in this district, but [Kalla and Broockman](https://www.cambridge.org/core/journals/american-political-science-review/article/abs/minimal-persuasive-effects-of-campaign-contact-in-general-elections-evidence-from-49-field-experiments/753665A313C4AB433DBF7110299B7433) find that the ground game does not persuade voters very effectively. So the tone/purpose of the campaign in each district is not relevant for our purposes - we only need to focus on the volume of the campaign. We use the total spending in each district over the entire campaign, not a transformation of it (e.g. its logarithm), because [Enos and Fowler](https://www.cambridge.org/core/journals/political-science-research-and-methods/article/abs/aggregate-effects-of-largescale-campaigns-on-voter-turnout/20C500B0DE62227873FD24CB3555F779) demonstrate that ground game efforts are approximately additive (contrasting with [Gerber et al.](https://www.jstor.org/stable/41480831)'s finding that the air war is not). 
+
+```{r model1, include=TRUE}
+# Join the voting data with the ad data
+df1 = inner_join(votes, ads, by=c("st_cd_fips" = "st_cd_fips", "year" = "cycle"))
+# Create the regression model and summarize it
+model1 = lm(Turnout ~ TotalSpending + TurnoutPrev, df1)
+summary(model1)
+# Extract the data that did not have missing values, and add the predicted values
+plot_df1 = model1$model
+plot_df1$Predicted = model1$fitted.values
+
+# Scatterplot of predicted vs. actual vote share
+p1 = plot_df1 %>% ggplot(aes(Predicted, Turnout)) +
+  geom_point() + 
+  geom_abline(slope=1, intercept=0, lty=2) +
+  xlab("Predicted Voter Turnout (% of District CVAP)") +
+  ylab("Actual Voter Turnout (% of District CVAP)") +
+  ggtitle("(turnout) = \n30.7 + \n0.49 (previous turnout) + \n(5.8e-7) (ad spending)")
+
+# Histogram of the residual with overlayed Normal density curve
+p2 = plot_df1 %>% ggplot(aes(Predicted - Turnout)) + 
+  geom_histogram(aes(y = ..density..), binwidth=4) + 
+  xlab("Residual") + 
+  ylab("Density") + 
+  stat_function(fun = function(x) dnorm(x, 0, summary(model1)$sigma)) + 
+  ggtitle("Histogram of Residuals")
+
+grid.arrange(p1, p2, ncol=2)
+```
+
+This model explains 57.5% of the variance in voter turnout, which is fairly good - the scatterplot comparing predicted voter turnout with actual voter turnout is pretty closely aligned with the dashed 45-degree line. Moreover, our coefficient for advertisement spending is statistically significant, and is large enough that it will affect our model. Even though a coefficient on the order of $10^{-7}$ might seem small, the mean advertisement spending in the data is roughly $2 \times 10^{7}$, quite large. According to our model, this level of campaign spending would cause roughly a 1.2% increase in voter turnout in the district, which is on the same order of magnitude of estimates of the effect of the ground game that we see in the literature. This validates our simple model.
+
+Not only is predicting turnout important because we do not know what the 2022 turnout will look like, but our model gives us the voter turnout that is *implied* by the ground game in the district. This is an interpretation that we care about, since it allows us to measure the campaign's effect on the election (instead of the effect of some voters waking up on Election Day and randomly deciding to go vote). So, in training our generalized linear model, we will actually use this estimate for voter turnout instead of the actual voter turnout, because it allows us to learn about the effectiveness (or, lack thereof) of campaigns. 
+
+## Model Update
+
+Now, we will move on to updating our main predictive model for 2022. The major update is moving from a linear model that predicts Democrat vote share to a generalized linear model that predicts the probability of the Democrat candidate's success. The specific GLM we will use is a binomial logistic model, where we assume that each voter casts his or her vote independently of the other voters in a district, and the probability that any single voter chooses the Democrat is a sigmoid transformation of a linear combination of the predictors. 
+
+On to the predictors we will use. As we have done in previous weeks, we will use the Democrat vote share in the previously observed election, and as discussed above, we will use our campaign-based estimate for voter turnout. However, we will allow the voter turnout predictor to interact with the previous vote share predictor. This is because we care about whether the additional voters will choose the Democrat or the Republican, and our best guess for the proportion of additional voters that will choose the Democrat is the proportion that did in the last election. For the fundamentals, we will use the Q8 unemployment rate for each state (as discussed [last week](https://jrdelgado2018.github.io/GOV1347/blogs/blog5/Blog-Five.html)), the average generic ballot poll support for Democrats in the two-months leading up to the election, and flags for party incumbency and whether the seat is open. Finally, we will include the expert predictions from [Inside Elections](https://insideelections.com/ratings/house) in this model, because they are a reputable forecaster and have an API from which one can download predictions for all 435 districts going back to 2010. We transform their categorical rankings onto a numerical 1-9 scale, which assumes that the "distance" between adjacent categories is relatively constant (this seems reasonable). 
+
+```{r model2, include=TRUE}
+df2 = votes %>%
+  inner_join(ads, by=c("st_cd_fips" = "st_cd_fips", "year" = "cycle")) %>%
+  inner_join(polls, by="year") %>%
+  inner_join(unemp_Q4, by=c("year" = "Year", "state.x" = "State and area")) %>%
+  select(DemVotes, RepVotes, code, DemIncumbent, DemPctPrev, TurnoutPrev, TotalSpending, DemPolls, UnempQ4, is_open, DemPct) %>%
+  drop_na()
+df2$PredictedTurnout = as.vector(predict(model1, df2))
+df2$Interaction = df2$PredictedTurnout * df2$DemPctPrev
+model2 = glm(cbind(DemVotes, RepVotes) ~ DemPctPrev + Interaction + DemPolls + DemIncumbent + code + is_open, family=binomial, data=df2)
+
+# Bootstrapped estimate of the MSE using cross-validation
+mses = replicate(10000, {
+  in_sample_inds = sample.int(n=nrow(df2), size=floor(0.75*nrow(df2)), replace=FALSE)
+  in_sample = df2[in_sample_inds, ]
+  out_sample = df2[-in_sample_inds, ]
+  mod = glm(cbind(DemVotes, RepVotes) ~ DemPctPrev + Interaction + DemPolls + DemIncumbent + code + is_open, family=binomial, data=in_sample)
+  preds = predict(mod, out_sample, "response")
+  mean((preds - out_sample$DemPct * 0.01) ** 2)
+})
+mse = mean(mses)
+rmse = sqrt(mse)
+
+mcfadden = 1 - summary(model2)$deviance / summary(model2)$null.deviance
+print(summary(model2))
+```
+
+All of the variables are significant in this model, but it turns out that the statewide unemployment does *not* reduce the AIC by very much. So, for the sake of parsimony, I exclude it. This lines up with our discussion [last week](https://jrdelgado2018.github.io/GOV1347/blogs/blog5/Blog-Five.html)), that perhaps the instability we've seen in which measure of unemployment is most predictive is indicative that it is a lower-level priority in the minds of voters. Our model also interprets the effect of the campaign, in that the sign of the interaction term is negative, indicating that when more voters turn out, they tend to preferentially vote Republican (beyond what the "baseline" voter turnout does). This is unexpected, because conventional wisdom says that higher turnout usually helps the Democrats. Perhaps, from this information, we might conclude that Republicans tended to run more effective congressional campaigns than Democrats did over the past decade.
+
+The model has a McFadden's R-squared of 72%, and exhibits a bootstrapped out-of-sample estimate of the root mean squared error of around 6%. So, we are well in-line with our prediction accuracy of previous weeks, and have the added benefit of a model that fits the constraints of values that can actually appear in an election (as opposed to an unbounded linear regression model).
+
+## 2022 Prediction
+
+Now we will update our prediction for 2022. We have access to the Inside Elections ratings, and the most recent generic ballot poll from [FiveThirtyEight](https://projects.fivethirtyeight.com/polls/generic-ballot/). The previous Democrat vote share, and the flags for party incumbency/open seat we also know exactly. This means that we just have to forecast turnout. We do this using the model we fit at the beginning of this blog post, as well as the model we made [last week](https://jrdelgado2018.github.io/GOV1347/blogs/blog5/Blog-Five.html) that predicts ad spending in the next election from ad spending in the previous election and incumbency. For the districts in which we do not have any data on ad spending, we simply forecast that turnout will not change from the previous election. Finally, in noncompetitive districts (where either no Democrat or no Republican is running), we predict that the unopposed candidate will win 100% of the time. In open seats for which we have data missing, we predict a pure toss-up.
+
+```{r today, include=TRUE}
+today = read_csv("data/inside_elections.csv") %>%
+  filter(year == 2022) %>%
+  left_join((
+    votes %>%
+      filter(year == 2020) %>%
+      select(DemPct, st_cd_fips, Turnout, cvap, district_num, state.x) %>%
+      rename(DemPctPrev = DemPct, TurnoutPrev = Turnout, State = state.x)
+  ), c("geoid" = "st_cd_fips")) %>%
+  left_join((
+    ads %>%
+      filter(cycle == 2018) %>%
+      select(st_cd_fips, TotalSpending) %>%
+      rename(TotalSpendingPrev = TotalSpending)
+  ), c("geoid" = "st_cd_fips")) %>%
+  mutate(DemIncumbent = inc_party == "Democrat",
+         DemPolls = 0.503, 
+         TotalSpending = 6.908e+05 + 5.625e-01*TotalSpendingPrev - 2.723e+05*DemIncumbent)
+today$PredictedTurnout = as.vector(predict(model1, today))
+today = today %>% 
+  rowwise() %>%
+  mutate(PredictedTurnout = ifelse(is.na(PredictedTurnout), TurnoutPrev, PredictedTurnout)) %>%
+  ungroup()
+today$Interaction = today$PredictedTurnout * today$DemPctPrev
+today$DemProbability = NA
+for (i in 1:nrow(today)) {
+  today$DemProbability[i] = predict(model2, today[i, ], "response")
+  if (is.na(today$DemProbability[i])) {
+    today$DemProbability[i] = ifelse(is.na(today$DemIncumbent[i]), 0.5, as.numeric(today$DemIncumbent[i]))
+  }
+}
+
+seat_share = sum(today$DemProbability)
+```
+
+Below is a map of our district-level probabalistic predictions, where a color closer to white represents the Democrat winning with low probability, and a color closer to blue represents the Democrat winning with high probability. For clarity of the color scale, uncontested districts are not included in this map (because their probabilities are either 0 or 1). 
+
+```{r todaymap, include=TRUE}
+# Join the district data to our data using FIPS code
+fips = select(read_csv("data/incumb_dist_1948-2020.csv"), st_cd_fips, state, district_num) %>% unique()
+fips$district_num = as.numeric(fips$district_num)
+districts = left_join(districts, fips, c("STATENAME" = "state", "DISTRICT" = "district_num"))
+# Simplify the boundaries so it can plot
+districts_simp <- ms_simplify(inner_join(districts, today, c("st_cd_fips" = "geoid")), keep = 0.01)
+# Make the map
+ggplot() +
+  geom_sf(data=districts_simp, aes(fill=DemProbability),
+          inherit.aes=FALSE, alpha=0.9) +
+  scale_fill_gradient(low="white", high="blue", limits=c(0.25, 0.75)) +
+  coord_sf(xlim=c(-124.8, -66.9), ylim=c(24.5, 49.4), expand=FALSE) +
+  theme_void() +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank()) + 
+  ggtitle("Probability of Democrat Candidate Winning, By District")
+```
+
+Finally, we can use this to form a final seat-share prediction. The sum of our Democrat win probabilities tells us the expected seat share for Democrats - the Democrats are predicted to win __202 seats__, or 46.4%. We can also use simulation to show the distribution of Democrat seat wins, in the below histogram (where the vertical line denotes a majority).
+
+```{r hist, include=TRUE}
+# Simulate the election 10000 times
+seats = replicate(10000, {
+  probs = today$DemProbability
+  races = rbernoulli(length(probs), probs)
+  sum(races)
+})
+
+# Make a histogram of the results
+ggplot(aes(DemSeats), data=data.frame("DemSeats" = seats)) + 
+  geom_histogram(aes(y = ..density..), binwidth=4) + 
+  xlab("Seats Won By Democrats") + 
+  ylab("Density") + 
+  stat_function(fun = function(x) dnorm(x, 0, summary(model1)$sigma)) + 
+  geom_vline(xintercept=218, color="blue") +
+  ggtitle("Histogram of Simulated 2022 Elections")
+```
