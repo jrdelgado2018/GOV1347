@@ -147,8 +147,8 @@ leading up to the election, and flags for party incumbency and whether
 the seat is open. Finally, we will include the expert predictions from
 [Inside Elections](https://insideelections.com/ratings/house) in this
 model, because they are a reputable forecaster and have an API from
-which one can download predictions for all 435 districts going back to
-2010. We transform their categorical rankings onto a numerical 1-9
+which one can download predictions for all 435 districts going back a decade. 
+We transform their categorical rankings onto a numerical 1-9
 scale, which assumes that the “distance” between adjacent categories is
 relatively constant (this seems reasonable).
 
