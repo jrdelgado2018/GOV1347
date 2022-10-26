@@ -1,0 +1,372 @@
+---
+title: "Blog Seven"
+author: "Jackson Delgado"
+date: '2022-10-26'
+output: md_document
+---
+
+# Blog Post Seven: Pooled Models and Demographic Data
+
+### October 26, 2022
+
+[Back to Homepage](../../README.md)
+
+[View the Code](https://github.com/jrdelgado2018/GOV1347/blob/master/blogs/blog7/Blog%20Seven.Rmd)
+
+```{r setup, include=FALSE}
+# Set R Markdown settings and load necessary packages
+knitr::opts_chunk$set(echo=FALSE, fig.align="center")
+knitr::opts_knit$set(root.dir="~/Desktop/GOV1347.nosync")
+library(tidyverse)
+library(gridExtra)
+library(usmap)
+library(sf)
+library(rmapshaper)
+library(lubridate)
+
+# load geographic data
+get_congress_map = function() {
+  tmp_file = tempfile()
+  tmp_dir = tempdir()
+  download.file("https://cdmaps.polisci.ucla.edu/shp/districts114.zip", tmp_file)
+  unzip(zipfile=tmp_file, exdir=tmp_dir)
+  fpath = paste(tmp_dir, "districtShapes/districts114.shp", sep="/")
+  st_read(fpath)
+}
+
+# Get the district map
+districts = get_congress_map()
+districts$DISTRICT = as.numeric(districts$DISTRICT)
+```
+
+```{r data, include=FALSE}
+# Read in the voting data, filter for elections where there was a Democrat and a 
+# Republican, and join with relevant variables from the previous election
+votes = read_csv("data/incumb_dist_1948-2020.csv") %>%
+  filter(!is.na(RepCandidate) & !is.na(DemCandidate)) %>%
+  rename(DemPct = DemVotesMajorPercent) %>%
+  mutate(DemPresident = year %in% c(1978, 1980, 1994, 1996, 1998, 2000, 2010, 2012, 2014, 2016), 
+         IsMidterm = year %% 4 == 2)
+votes = votes %>%
+  left_join((
+    votes %>% 
+    mutate(year = year + 2) %>%
+    select(year, st_cd_fips, DemPct) %>%
+    rename(DemPctPrev = DemPct)
+  ), c("year", "st_cd_fips"))
+
+# Get the Inside Elections ratings and create logical columns for the status of the incumbent
+ratings = read_csv("data/inside_elections.csv") %>% 
+  mutate(DemIncumbent = inc_party == "Democrat", 
+         RepIncumbent = inc_party == "Republican")
+
+# Read in the state unemployment data, filtering for the Q4 numbers
+unemp_Q4 = read_csv("data/unemployment_state_monthly.csv") %>% 
+  filter(Month == 10) %>%
+  rename(UnempQ4 = Unemployed_prct) %>%
+  select(Year, `State and area`, UnempQ4)
+
+# Read in the state unemployment data, filtering for the Q3 numbers
+unemp_Q3 = read_csv("data/unemployment_state_monthly.csv") %>% 
+  filter(Month == 7) %>%
+  rename(UnempQ3 = Unemployed_prct) %>%
+  select(Year, `State and area`, UnempQ3)
+
+# Get the poll data, filter for polls within 1 month of the election, and take simple average of results
+polls = read_csv("data/polls_df.csv") %>% 
+  filter(emonth %in% c(10, 11)) %>%
+  mutate(isDemocrat = party == "D") %>%
+  group_by(year) %>%
+  summarize(D = sum(support * isDemocrat) / sum(isDemocrat), R = sum(support * (1 - isDemocrat)) / sum(1 - isDemocrat)) %>%
+  mutate(DemPolls = D / (D + R))
+```
+
+## Introduction
+
+In this blog post, I will critically consider the modeling choice of using one pooled model for all districts vs. individual models for each district. I will also incorporate demographic data into the model, before updating my prediction of the 2022 midterms. 
+
+## To Pool Or Not To Pool
+
+There are advantages and disadvantages to the pooled model approach. A pooled model uses data from all districts to fit one prediction function that applies to all districts, so it essentially learns the commonalities between districts. This means that it is less sensitive to the idiosyncrasies that might be present between districts, so we have to hope that the districts all respond to the predictors in a similar manner. However, this additional assumption allows us to model correlations *between* districts (which district-specific models do not include), and it also allows us to be more efficient with our data usage (since the same amount of data is sent to a single model instead of getting split into 435 models).
+
+On the other hand, an unpooled model uses data from one particular district to fit a model that predicts outcomes for that particular district. This means that it picks up on the specific patterns exhibited by that district, but is reliant on a much smaller data set. If the data set is too small, we might end up overfitting to the noise without actually parsing out the true trend. However, if the data set is large enough, we can learn about the specific behavior of this district without getting "distracted" by what other districts tend to do. When we have reason to believe that different districts behave quite differently, this works in our favor. 
+
+[Last week](https://jrdelgado2018.github.io/GOV1347/blogs/blog6/Blog-Six.html) and in previous weeks, we have actually only considered pooled models. We haven't, though, made that choice with proper justification up to this point. So, we will now investigate which factors are best to pool and which are best to leave unpooled, before updating our prediction for 2022. 
+
+## Autocorrelation
+
+One of the most predictive features in my previous models has been the outcome of the previous election. This is for good reason - intuitively, without any other information, a natural guess for what will happen in an election is what happened in the most recent election. In our linear models, the Democrat vote share of the previous election has a coefficient that is related to (but not exactly equal to) the "autocorrelation" of this variable - quantifying how well the previous election predicts the next election. An autocorrelation closer to 1 means that the next election is perfectly determined by the previous election, and an autocorrelation closer to 0 means that the next election is completely unrelated to the previous election. 
+
+Our pooled models imply that the different districts have similar values for this autocorrelation. In other words, that each district has the same dependence on its previous election outcome. But is this grounded in truth? To investigate, we will calculate the autocorrelation value for each district, and then examine how spread out the resulting distribution of autocorrelations is. 
+
+```{r autocorr, include=TRUE}
+autocorrs = c()
+ids = c()
+# For each district, calculate the autocorrelation 
+# Only if we have enough observations to be confident in the estimate
+for (id in unique(votes$st_cd_fips)) {
+  df = votes %>% 
+    filter(st_cd_fips == id) %>%
+    select(DemPct, DemPctPrev)
+  if (nrow(df) > 16) {
+    df = drop_na(df)
+    autocorrs = c(cor(df$DemPct, df$DemPctPrev), autocorrs)
+    ids = c(id, ids)
+  }
+}
+
+# Create a dataframe with the results
+df1 = data.frame(st_cd_fips = ids, Autocorrelation = autocorrs)
+# Make the histogram
+df1 %>% ggplot(aes(Autocorrelation)) + 
+  geom_histogram(bins=40) +
+  ggtitle("Histogram of District-Specific Vote Share Autocorrelations") + 
+  xlab("Autocorrelation of Democrat Vote Share") + 
+  ylab("Number of Districts")
+```
+
+This distribution is pretty spread out! The majority of the autocorrelation values are clustered around 0.75, but this clustering is not very tight. Some districts have autocorrelations very close to 1, some districts have autocorrelations very close to 0.5, and a handful of districts have autocorrelations that are close to 0 or are even negative! This means that our pooling assumption - that the different districts respond similarly to this variable - is invalid. So, in this model update, we will include the previous vote share in an unpooled model. 
+
+At this point, might wonder if there are regional patterns in these autocorrelations. That is to say, maybe the variation of these autocorrelations exists on a larger regional scale. To satisfy this curiosity, as a quick aside I map the autocorrelation value for each district (ignoring those autocorrelations below 0.5 to make the color scale more granular), in order to see if any regional patterns emerge. 
+
+```{r corrmap, include=TRUE}
+# Join the district data to our data using FIPS code
+fips = select(read_csv("data/incumb_dist_1948-2020.csv"), st_cd_fips, state, district_num) %>% unique()
+fips$district_num = as.numeric(fips$district_num)
+districts = left_join(districts, fips, c("STATENAME" = "state", "DISTRICT" = "district_num"))
+# Simplify the boundaries so it can plot
+districts_simp <- ms_simplify(inner_join(districts, df1, "st_cd_fips"), keep = 0.01)
+# Make the map
+ggplot() +
+  geom_sf(data=districts_simp, aes(fill=Autocorrelation),
+          inherit.aes=FALSE, alpha=0.9) +
+  scale_fill_gradient(low="white", high="blue", limits=c(0.5, 1)) +
+  coord_sf(xlim=c(-124.8, -66.9), ylim=c(24.5, 49.4), expand=FALSE) +
+  theme_void() +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank()) + 
+  ggtitle("Autocorrelation of Democrat Vote Share, By District")
+```
+
+The districts definitely tend to have a color similar to their neighbors, but broad regions of the country do not seem to align in general. 
+
+## The Economy
+
+Measuring the effect of the state of the economy on election outcomes is something we have grappled with for a while. We've seen great support for the inclusion of this factor [in the literature](https://www.jstor.org/stable/23357704), but more nebulous results in our investigations when we moved the analysis of this factor from the state level to the district level. Perhaps this happened because different districts within each state have different sensitivities to this factor, so it was inappropriate to use a pooled model in this case. To investigate, I calculate the regression coefficient for Q4 unemployment for each district, in a bivariate model that includes Q8 unemployment and the district's previous Democrat vote share as independent variables. I also report the t-statistic for each coefficient.
+
+```{r economy, include=TRUE}
+unemps = c()
+ids = c()
+ts = c()
+# For each district, calculate the regression coefficients and t-statistics 
+# Only if we have enough observations to be confident in the estimate
+for (id in unique(votes$st_cd_fips)) {
+  df = votes %>% 
+    filter(st_cd_fips == id) %>%
+    inner_join(unemp_Q4, by=c("year" = "Year", "state" = "State and area")) %>%
+    inner_join(unemp_Q3, by=c("year" = "Year", "state" = "State and area")) %>%
+    select(DemPct, UnempQ4, UnempQ3, DemPctPrev) %>%
+    mutate(PctChange = (UnempQ4 - UnempQ3) / UnempQ3)
+  if (nrow(df) > 16) {
+    mod = lm(DemPct ~ UnempQ4 + DemPctPrev, data=drop_na(df))
+    ts = c(summary(mod)$coefficients["UnempQ4", "t value"], ts)
+    unemps = c(mod$coefficients["UnempQ4"], unemps)
+    ids = c(id, ids)
+  }
+}
+
+# Put the data into a dataframe
+df2 = data.frame(st_cd_fips = ids, Coefficients = unemps, TStatistics = ts)
+# Make the histogram of coefficients
+p1 = df2 %>% ggplot(aes(Coefficients)) + 
+  geom_histogram(bins=40) +
+  ggtitle("Histogram of District-Specific Unemployment Coefficients") + 
+  xlab("Coefficient of Statewide Q8 Unemployment Rate,\nin Model for Democrat Vote Share") + 
+  ylab("Number of Districts")
+# Make the histogram of t-statistics
+p2 = df2 %>% ggplot(aes(TStatistics)) + 
+  geom_histogram(bins=40) +
+  ggtitle("Histogram of District-Specific Unemployment Coefficient t-Statistics") + 
+  xlab("t-Statistic of Coefficient of Statewide Q8 Unemployment Rate,\nin Model for Democrat Vote Share") + 
+  ylab("Number of Districts")
+grid.arrange(p1, p2, nrow=2)
+```
+
+As we can see, the different districts have *wildly* different coefficients, centered around an average coefficient of 0 (indicating no effect for this variable!). Moreover, the vast majority of t-statistics on these coefficients are between -2 and 2, indicating statistical insignificance. The same results occur when we consider the Q7-Q8 percent change in unemployment. For this reason, we will exclude the state of the economy as a factor in both our pooled and our unpooled district-level models. In the future, though, we will think about ways to incorporate the state-level models (that demonstrated a more successful application of this variable) into our final prediction.
+
+## The Case For The Other Variables
+
+Another predictive feature of our previous models has been the results of the generic ballot poll. We have pooled this variable across districts in the past, but we have reason to believe that this choice was unwarranted. The generic ballot represents the *average* voter, and it does not make sense to assume (in a pooled model) that the different districts are equally representative of the average voter! Some districts skew much more liberal, and others skew much more conservative, and we would expect these two cases to exhibit different sensitivities to the generic ballot. So, due to this theoretical consideration, we will include the generic ballot only in unpooled models this week. 
+
+We also included in our models structural factors (like incumbency, the party of the president, and the status of midterm vs. presidential election) and expert ratings. We keep these structures in a pooled model, due to practical limitations of our data. For many of the districts for which our data on these factors is complete, there is not very much variation in these variables. A district will tend to have a similar expert rating election-to-election and a similar incumbent party, for example. So, in isolating each district for an individual model, we would likely not have the variation necessary to tease out robust coefficient estimates. So, we resort to a pooled model, where we can take advantage of *all* of our data to learn the similarities between districts with respect to these factors.
+
+## Model Update and 2022 Prediction
+
+So, we are now ready to update our model. We will consider a pooled model consisting of the Inside Elections rating and election structural factors as predictors, and individual models consisting of the district's previous vote share and the generic ballot as predictors. To make our final prediction, we will ensemble the two models by taking the simple average of the predictions. In the future, we will read up on more sophisticated ways to choose the ensemble weights!
+
+```{r training, include=FALSE}
+# Put all the data together
+model_df = votes %>%
+  left_join(ratings, by=c("st_cd_fips" = "geoid", "year" = "year")) %>%
+  left_join(polls, by="year")
+
+# A function that trains the two models, returning a prediction function
+train_models = function(df) {
+  # Select variables for pooled model
+  pooled_df = df %>% 
+    select(DemVotes, RepVotes, code, DemIncumbent, RepIncumbent, DemPresident, IsMidterm) %>%
+    drop_na()
+  # Select variables for unpooled models
+  unpooled_df = df %>%
+    select(DemVotes, RepVotes, DemPctPrev, DemPolls, st_cd_fips) %>%
+    drop_na()
+  # The pooled model
+  pooled_mod = glm(cbind(DemVotes, RepVotes) ~ code + DemIncumbent + RepIncumbent + DemPresident + IsMidterm,
+                   family=binomial, data=pooled_df)
+  # The unpooled models - one for each district
+  ids = c()
+  unpooled_mods = list()
+  i = 0
+  for (id in unique(unpooled_df$st_cd_fips)) {
+    i = i + 1
+    df = filter(unpooled_df, st_cd_fips == id)
+    ids[i] = id
+    unpooled_mods[[i]] = glm(cbind(DemVotes, RepVotes) ~ DemPctPrev + DemPolls, family=binomial, data=unpooled_df)
+  }
+  # A function that makes a prediction on a row of data
+  predict_entry = function(row) {
+    ind = which(ids == row$st_cd_fips)
+    if (length(ind == 1)) {
+      unpooled_mod = unpooled_mods[[ind]]
+      pooled_pred = predict(pooled_mod, row, "response")
+      unpooled_pred = predict(unpooled_mod, row, "response")
+      return(0.5 * pooled_pred + 0.5 * unpooled_pred)
+    } else {
+      return(NA)
+    }
+  }
+  # Return the prediction function
+  return(predict_entry)
+}
+
+full_prediction = train_models(model_df)
+
+# Make the predictions
+model_df$Predicted = NA
+for (i in 1:nrow(model_df)) {
+  model_df$Predicted[i] = full_prediction(model_df[i, ])
+}
+```
+
+Here is a scatter plot comparing the Democrat's predicted success probability given by the GLM model to the actual vote share they achieved. This model is pretty successful - the two main groups of points are where both the success probability and the vote share are above 50%, and where both the success probability and the vote share are below 50%. Only for a few points does the election outcome disagree with the success probability. 
+
+```{r preds, include=TRUE, warning=FALSE}
+# Scatter predicted vs. actual
+model_df %>% ggplot(aes(Predicted*100, DemPct)) +
+  geom_point() + 
+  geom_hline(yintercept=50) + 
+  geom_vline(xintercept=50) +
+  xlab("Predicted Probability For Democrat Candidate") + 
+  ylab("Actual Vote Share For Democrat Candidate")
+```
+
+I also calculate a bootstrapped estimate of the out-of-sample misclassification rate, using only 10 bootstrapped samples (since the fitting procedure takes very long). The estimate for the misclassification rate is just under 9%, which is pretty low! This means that we expect our model to correctly predict the win/lose result of 91% of districts. 
+
+```{r boot, include=FALSE, warning=FALSE}
+# Replicate the same procedure with in sample/out of sample splits
+misclass = replicate(10, {
+  # Get in sample and out of sample data
+  in_sample_inds = sample.int(n=nrow(model_df), size=floor(0.75*nrow(model_df)), replace=FALSE)
+  df_in = model_df[in_sample_inds, ]
+  df_out = model_df[-in_sample_inds, ]
+  # Fit the prediction to the in sample data
+  boot_prediction = train_models(df_in)
+  # Make the predictions on the out of sample data
+  df_out$Predicted = NA
+  for (i in 1:nrow(df_out)) {
+    df_out$Predicted[i] = boot_prediction(df_out[i, ])
+  }
+  # Calculate misclassification rate
+  df_out$DemWin = df_out$DemPct > 50
+  df_out$PredWin = df_out$Predicted > 0.5
+  df_out$Misclassified = (df_out$DemWin & !df_out$PredWin) | (!df_out$DemWin & df_out$PredWin)
+  mean(df_out$Misclassified, na.rm=TRUE)
+})
+mean(misclass)
+```
+
+Now, I can update my prediction for 2022. In the same manner as [last week](https://jrdelgado2018.github.io/GOV1347/blogs/blog6/Blog-Six.html), I get the most currently available values for today's data. I use the same heuristics for noncompetitive districts, assuming that the unopposed candidate has a success probability of 100%. 
+
+```{r today, include=TRUE}
+# Get the data for today
+today = read_csv("data/inside_elections.csv") %>%
+  filter(year == 2022) %>%
+  left_join((
+    votes %>%
+      filter(year == 2020) %>%
+      select(DemPct, st_cd_fips, district_num, state) %>%
+      rename(DemPctPrev = DemPct, State = state)
+  ), c("geoid" = "st_cd_fips")) %>%
+  mutate(DemIncumbent = inc_party == "Democrat",
+         RepIncumbent = inc_party == "Democrat",
+         IsMidterm = TRUE, 
+         DemPresident = TRUE,
+         DemPolls = 0.503) %>%
+  rename(st_cd_fips = geoid)
+
+# Calculate the predictions for today
+today$DemProbability = NA
+for (i in 1:nrow(today)) {
+  today$DemProbability[i] = full_prediction(today[i, ])
+  if (is.na(today$DemProbability[i])) {
+    today$DemProbability[i] = ifelse(is.na(today$DemIncumbent[i]), 0.5, as.numeric(today$DemIncumbent[i]))
+  }
+}
+seat_share = sum(today$DemProbability)
+```
+
+Here is a map of the predicted success probabilities, by district. The grey districts are uncontested, and excluded so that the color scale can be more granular. 
+
+```{r todaymap, include=TRUE}
+# Simplify the boundaries so it can plot
+districts_simp = ms_simplify(inner_join(districts, today, "st_cd_fips"), keep = 0.01)
+# Make the map
+ggplot() +
+  geom_sf(data=districts_simp, aes(fill=DemProbability),
+          inherit.aes=FALSE, alpha=0.9) +
+  scale_fill_gradient(low="white", high="blue", limits=c(0.25, 0.75)) +
+  coord_sf(xlim=c(-124.8, -66.9), ylim=c(24.5, 49.4), expand=FALSE) +
+  theme_void() +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank()) + 
+  ggtitle("Probability of Democrat Candidate Winning, By District")
+```
+
+For the final seat-share prediction, this model has Democrats winning an expected value of __223 seats__, or 51%. Our expectation of the performance of Democrats has *increased* compared to last week. Is this due to our inclusion of unpooled models? More likely, it is due to our exclusion of campaigning and turnout, which we concluded [last week](https://jrdelgado2018.github.io/GOV1347/blogs/blog6/Blog-Six.html) tended to actually give Republican congressional candidates the advantage. So, in the future, we should think about ways to bring this data back into our models even though it is widely missing. 
+
+We can again understand the uncertainty of our prediction via simulation. Below is a histogram of the Democrat performance in each simulated election, with a vertical line denoting a majority of seats. 
+
+```{r hist, include=TRUE}
+# Simulate the election 10000 times
+seats = replicate(10000, {
+  probs = today$DemProbability
+  races = rbernoulli(length(probs), probs)
+  sum(races)
+})
+
+# Make a histogram of the results
+ggplot(aes(DemSeats), data=data.frame("DemSeats" = seats)) + 
+  geom_histogram(binwidth=4) + 
+  xlab("Seats Won By Democrats") + 
+  ylab("Number of Simulated Elections") + 
+  geom_vline(xintercept=218, color="blue") +
+  ggtitle("Histogram of Simulated 2022 Elections")
+```
