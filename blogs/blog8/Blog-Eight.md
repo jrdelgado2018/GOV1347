@@ -212,7 +212,7 @@ the left-hand side being a nationwide vote share prediction. The *α*’s
 represent the ensembling weights, where the pooled model gets one weight
 and the unpooled model gets another weight. To calculate the nationwide
 prediction of the unpooled model, we calculate the average prediction
-across all states, weighted by the state population (according to the
+across all states, weighted by the state population *p* (according to the
 2020 census). To calculate the nationwide prediction of the pooled
 model, we calculate the (unweighted) average prediction across all
 districts, which is reasonable because all districts have similar
