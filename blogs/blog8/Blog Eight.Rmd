@@ -1,0 +1,433 @@
+---
+title: "Blog Eight"
+author: "Jackson Delgado"
+date: '2022-11-07'
+output: md_document
+---
+
+# Blog Post Eight: Final Midterm Prediction
+
+### November 7, 2022
+
+[Back to Homepage](../../README.md)
+
+[View the Code](https://github.com/jrdelgado2018/GOV1347/blob/master/blogs/blog8/Blog%20Eight.Rmd)
+
+```{r setup, include=FALSE}
+# Set R Markdown settings and load necessary packages
+knitr::opts_chunk$set(echo=FALSE, fig.align="center")
+knitr::opts_knit$set(root.dir="~/Desktop/GOV1347.nosync")
+library(tidyverse)
+library(gridExtra)
+library(usmap)
+library(sf)
+library(rmapshaper)
+library(lubridate)
+
+# load geographic data
+get_congress_map = function() {
+  tmp_file = tempfile()
+  tmp_dir = tempdir()
+  download.file("https://cdmaps.polisci.ucla.edu/shp/districts114.zip", tmp_file)
+  unzip(zipfile=tmp_file, exdir=tmp_dir)
+  fpath = paste(tmp_dir, "districtShapes/districts114.shp", sep="/")
+  st_read(fpath)
+}
+
+# Get the district map
+districts = get_congress_map()
+districts$DISTRICT = as.numeric(districts$DISTRICT)
+```
+
+## Introduction
+
+In this *final* blog post, I will present my final model for the 2022 midterm elections and its predictions for the composition of the House of Representatives.
+
+## Model Specification
+
+Informed by all the work we have done over the past two months, our model will consist of two pieces. 
+
+The first piece will be an unpooled statewide model (so one model for each state) that predicts the Democrat's vote share based on the economy, the generic ballot, the state's previous vote share for Democrats, and structural election factors. We do not pool data across states because, [as we saw last week,](https://jrdelgado2018.github.io/GOV1347/blogs/blog7/Blog-Seven.html) there is evidence of variation in the autocorrelation of different region's vote shares. We go back to including the economy (as measured by the statewide unemployment rate) in this model because there is strong evidence for this variable's impact [in the literature,](https://www.jstor.org/stable/23357704) and it had legitimate predictive power [our earlier state-level models.](https://jrdelgado2018.github.io/GOV1347/blogs/blog2/Blog-Two.html) 
+
+The second piece will be a pooled district-level model that predicts the Democrat's vote share based on expert ratings from [Inside Elections](https://insideelections.com/ratings/house) and the [Cook Political Report](https://www.cookpolitical.com/ratings/house-race-ratings), demographic data, the incumbent's ideological positioning as measured by DW-NOMINATE scores, and structural election factors. We pool this data because we expect these variables to affect all the districts similarly - for example, experts tune their ratings specifically to be consistent across districts, and there is strong evidence [in the literature](https://www.cambridge.org/core/journals/american-political-science-review/article/abs/out-of-step-out-of-office-electoral-accountability-and-house-members-voting/A5E4346ED9DD671DEFC6EE48064A0812) that the incumbent's ideological positioning has a similar electoral effect across districts. Pooling also has the benefit of being more robust to redistricting, as we will end up with one model that applies to all districts, even those that were newly created after the 2020 census.
+
+Finally, we will combine our two models via regression stacking, producing an ensemble model that will provide our final vote share prediction. We ultimately predict vote share, rather than seat share, to follow [Jennifer Victor's advice for effective presentation](https://www.cambridge.org/core/journals/ps-political-science-and-politics/article/abs/lets-be-honest-about-election-forecasting/A573B2560D0B9CEB408611F05A9446FC), and because in our previous work we did not see a large discrepancy in accuracy when predicting one versus the other. 
+
+## Statewide Models
+
+### Formulation
+
+Predictions of this model will follow the form
+
+$$ \widehat V_i = \text{logit}\Big(\beta_{0, i} + (\beta_{1, i}X_{1, i} + \beta_{2, i})X_{2, i} + \beta_{3, i}X_{3, i} + \beta_{4, i}X_{4, i} + \beta_{5, i}X_{5, i}\Big) $$
+
+Here, $\widehat V_i$ is the predicted vote share (for Democrats) in the $i$th state, each $\beta$ is a coefficient, and each $X$ is a variable. The subscript $i$ on all the coefficients denote that this model allows each state to have its own coefficient. $X_1$ is an indicator for whether the sitting president is a Democrat, $X_2$ is the Q8 unemployment rate for the state, $X_3$ is the results of the generic ballot poll (averaged over the month preceding the election), $X_4$ is the state's previous vote share for the Democrat candidate, and $X_5$ is an indicator for whether the election is a midterm or not (where the sign indicates whether the sitting president is a Democrat or a Republican, since voters tend to punish the *incumbent* in midterms, not a particular party). This is essentially an unpooled version of [our earliest model](https://jrdelgado2018.github.io/GOV1347/blogs/blog3/Blog-Three.html), with an added flag indicating whether it is a midterm year or a presidential year (which we saw proved useful in [our most recent model](https://jrdelgado2018.github.io/GOV1347/blogs/blog6/Blog-Six.html)).
+
+### Fit
+
+We fit the models, and plot distributions of the coefficients to get a general sense of how predictions are made. 
+
+```{r data1, include=FALSE}
+# Read in the voting data, filter for elections where there was a Democrat and a 
+# Republican, and join with relevant variables from the previous election
+votes = read_csv("data/incumb_dist_1948-2020.csv") %>%
+  filter(!is.na(RepCandidate) & !is.na(DemCandidate)) %>%
+  group_by(year, state) %>%
+  summarize(DemVotes = sum(DemVotes), 
+            RepVotes = sum(RepVotes),
+            DemPct = sum(DemVotes) / (sum(DemVotes) + sum(RepVotes)))
+votes = votes %>%
+  left_join((
+    votes %>% 
+    mutate(year = year + 2) %>%
+    select(year, state, DemPct) %>%
+    rename(DemPctPrev = DemPct)
+  ), c("year", "state")) %>%
+  mutate(DemPresident = year %in% c(1978, 1980, 1994, 1996, 1998, 2000, 2010, 2012, 2014, 2016), 
+         IsMidterm = year %% 4 == 2)
+
+# Read in the state unemployment data, filtering for the Q4 numbers
+unemp_Q4 = read_csv("data/unemployment_state_monthly.csv") %>% 
+  filter(Month == 10) %>%
+  rename(UnempQ4 = Unemployed_prct) %>%
+  select(Year, `State and area`, UnempQ4)
+
+# Get the poll data, filter for polls within 1 month of the election, and take simple average of results
+polls = read_csv("data/polls_df.csv") %>% 
+  filter(emonth %in% c(10, 11)) %>%
+  mutate(isDemocrat = party == "D") %>%
+  group_by(year) %>%
+  summarize(D = sum(support * isDemocrat) / sum(isDemocrat), R = sum(support * (1 - isDemocrat)) / sum(1 - isDemocrat)) %>%
+  mutate(DemPolls = D / (D + R))
+
+# Join all the data together
+df1 = votes %>%
+  left_join(unemp_Q4, c("year" = "Year", "state" = "State and area")) %>%
+  left_join(polls, "year") %>%
+  mutate(Interaction = UnempQ4 * DemPresident, 
+         MidtermFlag = IsMidterm * DemPresident - IsMidterm * (1 - DemPresident)) 
+
+# Read in the state population data (will need this later)
+pops = read_csv("data/pops.csv")
+pops$prop = pops$pop / sum(pops$pop)
+
+# Get the nationwide vote share by year (will need this later)
+actual = read_csv("data/incumb_dist_1948-2020.csv") %>%
+  filter(!is.na(RepCandidate) & !is.na(DemCandidate)) %>%
+  group_by(year) %>%
+  summarize(ActualPct = sum(DemVotes) / (sum(DemVotes) + sum(RepVotes)))
+```
+
+```{r model1, include=FALSE}
+# A function that trains the unpooled models, returning a list of models
+train_unpooled_models = function(df) {
+  # Select variables for the unpooled models
+  unpooled_df = df %>%
+    select(state, DemVotes, RepVotes, Interaction, 
+           UnempQ4, DemPolls, DemPctPrev, MidtermFlag) %>%
+    drop_na()
+  # The unpooled models - one for each state
+  unpooled_mods = list()
+  for (st in unique(unpooled_df$state)) {
+    dat = filter(unpooled_df, state == st)
+    unpooled_mods[[st]] = glm(cbind(DemVotes, RepVotes) ~ Interaction + UnempQ4 + DemPolls + DemPctPrev + MidtermFlag, 
+                             family=binomial, data=dat)
+  }
+  return(unpooled_mods)
+}
+
+all_state_mods = train_unpooled_models(df1)
+```
+
+```{r coefs, include=TRUE, warning=FALSE, message=FALSE}
+# Get all the coefficients together in one dataframe
+coef_df = data.frame()
+for (st in names(all_state_mods)) {
+  coef_df = rbind(coef_df, all_state_mods[[st]]$coefficients %>% t() %>% data.frame())
+}
+
+# Make one histogram for each coefficient
+p0 = coef_df %>% ggplot(aes(X.Intercept.)) + geom_histogram(bins=20) + xlab("Intercept")
+p1 = coef_df %>% ggplot(aes(UnempQ4)) + geom_histogram(bins=20) + xlab("Unemployment (Rep. President)")
+p2 = coef_df %>% ggplot(aes(UnempQ4 + Interaction)) + geom_histogram(bins=20) + xlab("Unemployment (Dem. President)")
+p3 = coef_df %>% ggplot(aes(DemPolls)) + geom_histogram(bins=20) + xlab("Generic Ballot")
+p4 = coef_df %>% ggplot(aes(DemPctPrev)) + geom_histogram(bins=20) + xlab("Previous Vote Share")
+p5 = coef_df %>% ggplot(aes(MidtermFlag)) + geom_histogram(bins=20) + xlab("Is a Midterm")
+grid.arrange(p0, p5, p1, p2, p3, p4, ncol=2, top="Distributions of Coefficients")
+```
+
+The magnitudes of the coefficients are difficult to interpret, since the variables all have different units and predictions are made via a logit function rather than a simple linear function. However, we *can* easily interpret the sign of the coefficients. Almost all of the models have a negative coefficient for the midterm flag, indicating that Democrats tend to receive fewer votes when it is a midterm and they have the presidency (and more votes when it is a midterm and a Republican has the presidency). Most of the models have a positive coefficient for the unemployment term when a Republican has the presidency, showing that voters turn to Democrats in periods of high unemployment because this is an issue they "own." However, when a Democrat has the presidency, most of the coefficients shift to the left, showing that voters are less apt to "reward" Democrats for high unemployment when one is already president. There is a clean divide in the signs of the sensitivities to the generic ballot, indicating that some states are more conservative than the average voter and some states are more liberal than the average voter. Finally, almost all the models have positive sensitivity to their previous vote share, with some states being very sensitive to it and others being less so. For almost every model, all of the coefficients are statistically different from zero at a five percent significance level, which justifies this model. 
+
+## District-Level Model
+
+### Formulation 
+
+Predictions of this model will follow the form
+
+$$ \widehat V_i = \text{logit}\Big(\beta_{0} + \beta_{1}X_{1, i} + \beta_{2}X_{2, i} + \beta_{3}X_{3, i} + \beta_{4}X_{4, i} + \beta_{5}X_{5, i} + \beta_{6}X_{6, i} + \beta_{7}X_{7, i} \Big) $$
+
+Here, $\widehat V_i$ is again the predicted vote share (for Democrats) in the $i$th district, each $\beta$ is a coefficient, and each $X$ is a variable. Notice that this time, the coefficients do not have a subscript $i$, so all districts share the same coefficients. $X_1$ is the average rating from Inside Elections and the Cook Political Report (coded on a numerical scale), $X_2$ is the proportion of the district below the age of $30$, $X_3$ is the proportion of the district that is female, $X_4$ is the proportion of the district that is black or hispanic, $X_5$ is the incumbent's DW-NOMINATE score (the first dimension), $X_6$ is a flag for the incumbency status of the seat (where the sign codes for Democrat versus Republican), and $X_7$ is the same flag from the earlier model detailing the midterm status of the election and the party of the president. 
+
+### Fit 
+
+We fit the models, and report the coefficients along with standard errors and p-values. 
+
+```{r data2, include=FALSE}
+# Read in the voting and ideology data, filter for elections where there was a Democrat and a Republican
+votes_ideo = read_csv("data/ideo_pv.csv") %>%
+  filter(!is.na(RepCandidate) & !is.na(DemCandidate)) %>%
+  mutate(DemPresident = year %in% c(1978, 1980, 1994, 1996, 1998, 2000, 2010, 2012, 2014, 2016), 
+         IsMidterm = year %% 4 == 2)
+
+# Read in the demographics data
+demo = read_csv("data/demographic_2009_2020.csv") %>%
+  mutate(black_or_latino = black + `hispanic or latino`)
+
+# Read in the Inside Elections data
+inside_elections = read_csv("data/inside_elections.csv") %>%
+  mutate(Incumbent = 1 * (inc_party == "Democrat") - 1 * (inc_party == "Republican"))
+
+# Read in the Cook Political Report data
+cook = read_csv("data/cook.csv")
+
+# Put all the data together
+df2 = votes_ideo %>%
+  left_join(demo, c("year", "st_cd_fips")) %>%
+  left_join(inside_elections, c("year" = "year", "st_cd_fips" = "geoid"))%>%
+  left_join(cook, c("year" = "year", "st_cd_fips" = "geoid")) %>%
+  mutate(Experts = 0.5 * code.x + 0.5 * code.y, 
+         MidtermFlag = IsMidterm * DemPresident - IsMidterm * (1 - DemPresident))
+```
+
+```{r model2, include=TRUE}
+# A function that trains the pooled model, returning it
+train_pooled_model = function(df) {
+  # Select variables for the pooled model
+  pooled_df = df %>%
+    select(DemVotes, RepVotes, Experts, `20_29`, female, 
+           black_or_latino, nominate_dim1, Incumbent, MidtermFlag) %>%
+    drop_na()
+  # The pooled model
+  pooled_mod = glm(cbind(DemVotes, RepVotes) ~ Experts + `20_29` + female + black_or_latino + nominate_dim1 + Incumbent + MidtermFlag, 
+                   family=binomial, data=pooled_df)
+  return(pooled_mod)
+}
+
+districts_mod = train_pooled_model(df2)
+summary(districts_mod)
+```
+
+Again, we can much more easily interpret the signs of the coefficients than their magnitudes. The ratings of experts has a positive coefficient, which means that a district tends to see more votes for the Democrat when experts give it a stronger rating in favor of the Democrat. Each of the demographic categories we included has a positive sign, validating that (as we might have expected) these demographics tend to turn out more for Democrats than for Republicans. Between the categories, we actually *can* interpret the signs of the coefficients, because those three variables are all on the same scale - so we see that the Democrat's vote share is most sensitive to the proportion of female voters, followed by the proportion of young voters, followed by the proportion of black and hispanic voters. The incumbent's NOMINATE score has a negative coefficient, meaning that the Democrat gets more votes when the incumbent is more liberal and fewer votes when the incumbent is more conservative. The coefficient for the party of the incumbent is negative (but much smaller than the other coefficients), meaning that the Democrat gets slightly fewer votes when the incumbent is a Democrat and slightly more votes when the incumbent is a Republican. This is initially puzzling, but it seems that this coefficient is really measuring "regression to the mean," as variables like the expert ratings and the incumbent's NOMINATE score already implicitly account for the incumbency advantage. Finally, we again see that Democrats tend to receive fewer votes when it is a midterm and they have the presidency (and more votes when it is a midterm and a Republican has the presidency). All the coefficients are statistically significant, providing one justification for this model. 
+
+## Final Ensemble Model and 2022 Prediction
+
+### Formulation 
+
+With the two component models in place, we are ready to specify how our final predictions will be made. The final prediction will take the form 
+
+$$ \widehat V = \alpha_0 + \alpha_{\text{unpooled}} \sum_{\text{states }i} p_i \cdot \widehat V_{\text{unpooled, }i} + \alpha_{\text{pooled}} \sum_{\text{districts }i} \frac{1}{\text{num districts}}\widehat V_{\text{pooled, }i}$$
+
+Again, the $\widehat V$'s represent predicted vote shares for the Democrats, with the left-hand side being a nationwide vote share prediction. The $\alpha$'s represent the ensembling weights, where the pooled model gets one weight and the unpooled model gets another weight. To calculate the nationwide prediction of the unpooled model, we calculate the average prediction across all states, weighted by the state population (according to the 2020 census). To calculate the nationwide prediction of the pooled model, we calculate the (unweighted) average prediction across all districts, which is reasonable because all districts have similar populations. This method of calculating a final prediction assumes that, across different states and districts, the proportion of eligible voters who turn out to vote is roughly the same. This is likely not an *exact* reflection of reality, but it should be close enough that a more nuanced calculation would make our model unnecessarily complicated. 
+
+### Fit
+
+To fit the $\alpha$'s, we treat them as coefficients that we would like to learn via OLS (this is called "regression stacking").
+
+```{r alphas, include=FALSE}
+# A function that gets the unpooled prediction and standard error for a dataframe, assumed to only contain one year
+unpooled_prediction = function(mods, df) {
+  df_use = df %>%
+    select(state, Interaction, UnempQ4, DemPolls, DemPctPrev, MidtermFlag) %>%
+    right_join(pops, "state")
+  df_use$Pred = NA
+  df_use$SE = NA
+  for (i in 1:nrow(df_use)) {
+    row = df_use[i, ]
+    pred = predict(mods[[row$state]], row, se.fit=TRUE, type="response")
+    df_use[i, "Pred"] = pred$fit
+    df_use[i, "SE"] = pred$se.fit
+  }
+  unused_states = 1 - sum(filter(df_use, is.na(Pred))$prop) 
+  return(c(
+    sum(df_use$Pred * df_use$prop / unused_states, na.rm=TRUE), 
+    sum(df_use$SE * df_use$prop / unused_states, na.rm=TRUE)
+  ))
+}
+
+# A function that gets the pooled prediction and standard error for a dataframe, assumed to only contain one year
+pooled_prediction = function(mod, df) {
+  df_use = df %>%
+    select(Experts, `20_29`, female, black_or_latino, nominate_dim1, Incumbent, MidtermFlag)
+  df_use$Pred = NA
+  df_use$SE = NA
+  for (i in 1:nrow(df_use)) {
+    row = df_use[i, ]
+    pred = predict(mod, row, se.fit=TRUE, type="response")
+    df_use[i, "Pred"] = pred$fit
+    df_use[i, "SE"] = pred$se.fit
+  }
+  num_districts = sum(!is.na(df_use$Pred))
+  return(c(
+    sum(df_use$Pred / num_districts, na.rm=TRUE), 
+    sum(df_use$SE / num_districts, na.rm=TRUE)
+  ))
+}
+
+# A function that fits the alphas, returning a final prediction model
+final_prediction = function(df1, df2) {
+  # Get the models
+  unpooled_mods = train_unpooled_models(df1)
+  pooled_mod = train_pooled_model(df2)
+  # Get the individual predictions for each year
+  actuals = c()
+  pooled_preds = c()
+  unpooled_preds = c()
+  i = 1
+  for (yr in unique(df2$year)) {
+    actuals[i] = filter(actual, year==yr)$ActualPct
+    pooled_preds[i] = pooled_prediction(pooled_mod, filter(df2, year==yr))[1]
+    unpooled_preds[i] = unpooled_prediction(unpooled_mods, filter(df1, year==yr))[1]
+    i = i + 1
+  }
+  df = data.frame(actual = actuals, pooled = pooled_preds, unpooled = unpooled_preds)
+  ensemble = lm(actual ~ pooled + unpooled, data=df)
+  return(ensemble)
+}
+
+ensemble = final_prediction(df1, df2)
+```
+
+The fitted values are $\alpha_0 = 0.09$, $\alpha_{\text{unpooled}} = -0.3$, and $\alpha_{\text{pooled}} = 1.1$. This is saying that the district-level model has a prediction that fluctuates more than the state-level models (which makes sense since the former is more granular than the latter). So, we "overpredict" with the district-level model, and then walk that prediction back using the state-level models. 
+
+### Diagnostics 
+
+This model has an R-squared of 81%, meaning that we are able to explain 81% of the variation in the nationwide vote share attained by Democrats using this model. This is higher than any R-squared we had been able to achieve previously, which is exciting!
+
+Here is a plot comparing the actual Democrat vote share to the predicted Democrat vote share in the five elections from the past decade (2012, 2014, 2016, 2018, and 2020), along with the 45-degree line for reference. All of the data points are very close to the line - within a vertical distance of 1 percentage point of the vote. 
+
+```{r plot1, include=TRUE}
+df_plot1 = ensemble$model
+df_plot1$predicted = predict(ensemble, df_plot1)
+df_plot1 %>% ggplot(aes(100*predicted, 100*actual)) + 
+  geom_point() + 
+  geom_abline(slope=1, intercept=0) + 
+  ylab("Actual Nationwide Democrat Vote Share (%)") + 
+  xlab("Predicted Nationwide Democrat Vote Share (%)")
+```
+
+Using "leave one out" cross-validation, we can compute an out-of-sample estimate of the mean absolute prediction error. We find a mean absolute error of roughly 0.01, which means that our model will, on average, deviate from the true two-party vote share won by Democrats by around one percentage points. Expressed in terms of squared error instead of absolute error, the out-of-sample estimate for root-mean squared error is roughly two percentage points. Those are sizable margins, but they are lower than the other out-of-sample margins of error we encountered in our earlier work, which is also exciting!
+
+```{r mae, include=FALSE}
+errors = c()
+for (yr in c(2012, 2014, 2016, 2018, 2020)) {
+  # Create a train/test split
+  df1_train = filter(df1, year != yr)
+  df1_test = filter(df1, year == yr)
+  df2_train = filter(df2, year != yr)
+  df2_test = filter(df2, year == yr)
+  # Get the models
+  unpooled_mods = train_unpooled_models(df1_train)
+  pooled_mod = train_pooled_model(df2_train)
+  # Compute the final ensemble prediction
+  df = data.frame(actual = filter(actual, year == yr)$ActualPct, 
+                  pooled = pooled_prediction(pooled_mod, df2_test)[1], 
+                  unpooled = unpooled_prediction(unpooled_mods, df1_test)[1])
+  df$predicted = predict(ensemble, df)
+  errors = c(errors, df$predicted - df$actual)
+}
+mean(abs(errors))
+sqrt(sum(errors ** 2))
+```
+
+### 2022 Prediction
+
+```{r today, include=FALSE}
+# Get the state-level data for today
+today1 = votes %>%
+  filter(year == 2020) %>%
+  select(state, DemPct) %>%
+  rename(DemPctPrev = DemPct) %>%
+  left_join(read_csv("data/unemp2022.csv"), "state") %>%
+  mutate(Interaction = UnempQ4, 
+         MidtermFlag = 1,
+         DemPolls = 0.503, 
+         Predicted = NA)
+# Get the predictions for each state
+for (i in 1:nrow(today1)) {
+  row = today1[i, ]
+  today1$Predicted[i] = predict(all_state_mods[[row$state]], row, type="response")
+}
+
+# Get the district-level data for today
+today2 = filter(inside_elections, year == 2022) %>%
+  left_join(filter(cook, year == 2022), "geoid") %>%
+  left_join(demo %>%
+              filter(year == 2020 | year == 2018) %>%
+              group_by(st_cd_fips) %>%
+              summarize(`20_29` = mean(`20_29`), 
+                        female = mean(female), 
+                        black_or_latino = mean(black_or_latino)), 
+            c("geoid" = "st_cd_fips")) %>%
+  left_join(read_csv("data/HSall_members.csv"), 
+            c("geoid" = "st_cd_fips")) %>%
+  mutate(MidtermFlag = 1, 
+         Experts = 0.5 * code.x + 0.5 * code.y, 
+         Predicted = NA)
+# Get the predictions for each district
+for (i in 1:nrow(today2)) {
+  row = today2[i, ]
+  today2$Predicted[i] = predict(districts_mod, row, type="response")
+}
+```
+
+After all this, our __final__ prediction for the 2022 midterm election is for __Democrats to win 49.18% of the nationwide two-party vote share.__ To form a 95% prediction interval around this prediction, we calculate the standard error for each model and then apply the ensemble weights. The resulting prediction interval has Democrats winning between 49.15% and 49.21% of the nationwide two-party vote share. This is a very narrow predictive interval, and does not reflect the out-of-sample mean absolute error that we observed earlier. The problem here is described by [FiveThirtyEight](https://fivethirtyeight.com/methodology/how-fivethirtyeights-house-and-senate-models-work/) - we calculate standard errors as if the districts/states are independent of each other, but this is a very bad approximation of reality. In real life, the errors are quite correlated, which results in a much larger standard error than our calculation implies. This does not change the point estimate of our model, but it is a limitation that we must keep in mind when we interpret our accuracy post-election!
+
+In an "appendix" section below, I include maps that visualize the individual predictions of the two models. 
+
+```{r finalpred, include=FALSE}
+unpooled_pred = unpooled_prediction(all_state_mods, today1)
+pooled_pred = pooled_prediction(districts_mod, today2)
+df_final = data.frame(pooled = c(pooled_pred[1], 
+                                 pooled_pred[1] - 2 * pooled_pred[2],
+                                 pooled_pred[1] + 2 * pooled_pred[2]), 
+                      unpooled = c(unpooled_pred[1], 
+                                   unpooled_pred[1] + 2 * unpooled_pred[2], 
+                                   unpooled_pred[1] - 2 * unpooled_pred[2]))
+df_final$predicted = predict(ensemble, df_final)
+```
+
+Below is a map of the statewide predictions (from the unpooled models). South Dakota has an uncontested election, so we do not include it on this map because our model does not apply to uncontested elections. 
+
+```{r statemap, include=TRUE}
+states = us_map()
+# Plot the map
+plot_usmap(data=today1, regions="states", values="Predicted") +
+  theme_void() + 
+  scale_fill_gradient(low="white", high="blue", name="Proportion of Votes") + 
+  ggtitle("Predicted Vote Share Achieved by Democrats, 2022 Midterm Election")
+```
+
+Below is a map of the district predictions (from the pooled model). The few grey districts (around 5) had data missing, so we do not include them on this map for simplicity. 
+
+```{r districtmap, include=TRUE}
+# Join the district data to our data using FIPS code
+fips = select(read_csv("data/incumb_dist_1948-2020.csv"), st_cd_fips, state, district_num) %>% unique()
+fips$district_num = as.numeric(fips$district_num)
+districts = left_join(districts, fips, c("STATENAME" = "state", "DISTRICT" = "district_num"))
+# Simplify the boundaries so it can plot
+districts_simp = ms_simplify(inner_join(districts, today2, c("st_cd_fips" = "geoid")), keep = 0.01)
+# Make the map
+ggplot() +
+  geom_sf(data=districts_simp, aes(fill=Predicted),
+          inherit.aes=FALSE, alpha=0.9) +
+  scale_fill_gradient(low="white", high="blue", name="Proportion of Votes") +
+  coord_sf(xlim=c(-124.8, -66.9), ylim=c(24.5, 49.4), expand=FALSE) +
+  theme_void() +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank()) + 
+  ggtitle("Predicted Vote Share Achieved by Democrats, 2022 Midterm Election")
+```

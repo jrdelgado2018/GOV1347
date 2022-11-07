@@ -235,7 +235,7 @@ train_models = function(df) {
     i = i + 1
     df = filter(unpooled_df, st_cd_fips == id)
     ids[i] = id
-    unpooled_mods[[i]] = glm(cbind(DemVotes, RepVotes) ~ DemPctPrev + DemPolls, family=binomial, data=unpooled_df)
+    unpooled_mods[[i]] = glm(cbind(DemVotes, RepVotes) ~ DemPctPrev + DemPolls, family=binomial, data=df)
   }
   # A function that makes a prediction on a row of data
   predict_entry = function(row) {
