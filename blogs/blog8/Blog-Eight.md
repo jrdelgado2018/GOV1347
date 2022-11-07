@@ -262,8 +262,9 @@ in our earlier work, which is also exciting!
 
 ### 2022 Prediction
 
-After all this, our **final** prediction for the 2022 midterm election
-is for **Democrats to win 49.18% of the nationwide two-party vote
+After all this, we can make our **final** prediction for the 2022 midterm election.
+As always, we predict using the most current available values for all the predictors. 
+Our point estimate is for **Democrats to win 49.18% of the nationwide two-party vote
 share.** To form a 95% prediction interval around this prediction, we
 calculate the standard error for each model and then apply the ensemble
 weights. The resulting prediction interval has Democrats winning between
