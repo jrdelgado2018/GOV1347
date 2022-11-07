@@ -205,7 +205,7 @@ providing one justification for this model.
 With the two component models in place, we are ready to specify how our
 final predictions will be made. The final prediction will take the form
 
-*V̂* = *α*<sub>0</sub> + *α*<sub>unpooled</sub>sum<sub>states *i*</sub>(*p*<sub>*i*</sub> *V̂*<sub>unpooled, *i*</sub>) + *α*<sub>pooled</sub>sum<sub>districts *i*</sub>(*n*<sub>*i*</sub> *V̂*<sub>pooled, *i*</sub>)
+*V̂* = *α*<sub>0</sub> + *α*<sub>unpooled</sub>SUM<sub>states *i*</sub>(*p*<sub>*i*</sub> *V̂*<sub>unpooled, *i*</sub>) + *α*<sub>pooled</sub>MEAN<sub>districts *i*</sub>(*V̂*<sub>pooled, *i*</sub>)
 
 Again, the *V̂*’s represent predicted vote shares for the Democrats, with
 the left-hand side being a nationwide vote share prediction. The *α*’s
