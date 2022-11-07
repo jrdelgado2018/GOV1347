@@ -1,4 +1,4 @@
-# Blog Post Seven: Pooled Models and Demographic Data
+# Blog Post Seven: Pooled Models
 
 ### October 26, 2022
 
@@ -11,8 +11,7 @@ Code](https://github.com/jrdelgado2018/GOV1347/blob/master/blogs/blog7/Blog%20Se
 
 In this blog post, I will critically consider the modeling choice of
 using one pooled model for all districts vs. individual models for each
-district. I will also incorporate demographic data into the model,
-before updating my prediction of the 2022 midterms.
+district, before updating my prediction of the 2022 midterms.
 
 ## To Pool Or Not To Pool
 
