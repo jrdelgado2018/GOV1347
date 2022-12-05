@@ -1,5 +1,7 @@
 Here is the website I will be using to track the progress of my statistical models that describe and predict the 2022 midterm elections. A new blog entry will be posted on the Monday of each week (or perhaps earlier!). I can be reached at [jdelgado@college.harvard.edu](jdelgado@college.harvard.edu). 
 
+# [Blog Post Ten: Campaign Narrative](blogs/blog10/Blog-Ten.md)
+
 # [Blog Post Nine: Reflection on Prediction](blogs/blog9/Blog-Nine.md)
 
 # [Blog Post Eight: Final Prediction!](blogs/blog8/Blog-Eight.md)
