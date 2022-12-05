@@ -20,7 +20,7 @@ is the northwestern-most congressional district in the state. It runs
 along the border of New York state on the top and left, extends to (but
 does not include) the Connecticut state capital Hartford on the right,
 and reaches its bottom just before the cities and towns along Interstate
-95. The district mostly contains suburban areas, however it also
+95 (the region's major highway). The district mostly contains suburban areas, however it also
 contains sections of the state’s smaller cities: New Britain, Danbury,
 Waterbury, and Torrington. The district’s boundaries were only slightly
 revised by redistricting after the 2020 census.
