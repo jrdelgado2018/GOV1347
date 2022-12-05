@@ -117,7 +117,7 @@ with her campaign emphasizing the idiosyncrasy of CT-05’s voters as
 opposed to Logan’s strategy of riding the hoped-for nationwide “red
 wave.” Indeed, the [air war content of the campaigns reflect this
 dichotomy of
-approaches.](https://ctmirror.org/2022/08/31/hayes-logan-ads-5th-district-election/).
+approaches](https://ctmirror.org/2022/08/31/hayes-logan-ads-5th-district-election/).
 Republican super PACs ran ads [criticizing Hayes for aligning with the
 Democrats’ economic
 policies](https://ctmirror.org/2022/08/31/hayes-logan-ads-5th-district-election/),
